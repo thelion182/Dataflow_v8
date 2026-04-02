@@ -1,101 +1,121 @@
 // @ts-nocheck
 /**
- * db.ts — capa de abstracción de persistencia.
+ * db.ts — capa de abstracción de persistencia. PUNTO ÚNICO DE MIGRACIÓN AL BACKEND.
  *
- * PUNTO ÚNICO DE MIGRACIÓN AL BACKEND.
- * Para conectar la API real, reemplazar los imports de localStorage/*
- * por los correspondientes imports de api/* y actualizar las funciones.
- * El resto del código (hooks, componentes) no cambia.
+ * ─── Cómo conectar el backend (Cómputos) ──────────────────────────────────────
  *
- * Ejemplo de migración para archivos:
- *   // Antes:
- *   import * as filesStorage from './localStorage/filesStorage';
- *   // Después:
- *   import * as filesStorage from './api/filesAPI';
- *   // Y filesAPI.ts expone las mismas funciones pero con fetch() en lugar de localStorage.
+ *   1. Copiar .env.example → .env.local
+ *   2. Editar .env.local:
+ *        VITE_USE_API=true
+ *        VITE_API_URL=http://tu-servidor/api
+ *   3. Implementar los endpoints REST (ver BACKEND_GUIDE.md)
+ *   4. Levantar el backend y hacer npm run dev
+ *      → el switch es automático, sin tocar ningún otro archivo
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
-// ─── Módulo Información ────────────────────────────────────────────────────
-import * as filesStorage     from './localStorage/filesStorage';
-import * as sectorsStorage   from './localStorage/sectorsStorage';
-import * as downloadsStorage from './localStorage/downloadsStorage';
-import * as periodsStorage   from './localStorage/periodsStorage';
-import * as usersStorage     from './localStorage/usersStorage';
+const USE_API = import.meta.env.VITE_USE_API === 'true';
 
-// ─── Módulo Reclamos ───────────────────────────────────────────────────────
-import * as reclamosStorage       from './localStorage/reclamosStorage';
-import * as reclamosConfigStorage from './localStorage/reclamosConfigStorage';
+// ─── localStorage (modo actual — sin backend) ──────────────────────────────
+import * as filesLocal          from './localStorage/filesStorage';
+import * as sectorsLocal        from './localStorage/sectorsStorage';
+import * as downloadsLocal      from './localStorage/downloadsStorage';
+import * as periodsLocal        from './localStorage/periodsStorage';
+import * as usersLocal          from './localStorage/usersStorage';
+import * as reclamosLocal       from './localStorage/reclamosStorage';
+import * as reclamosConfigLocal from './localStorage/reclamosConfigStorage';
+
+// ─── API REST (modo backend — activar con VITE_USE_API=true) ──────────────
+import * as filesAPI          from './api/filesAPI';
+import * as sectorsAPI        from './api/sectorsAPI';
+import * as downloadsAPI      from './api/downloadsAPI';
+import * as periodsAPI        from './api/periodsAPI';
+import * as usersAPI          from './api/usersAPI';
+import * as reclamosAPI       from './api/reclamosAPI';
+import * as reclamosConfigAPI from './api/reclamosConfigAPI';
+
+// ─── Selección automática ─────────────────────────────────────────────────
+const files          = USE_API ? filesAPI          : filesLocal;
+const sectors        = USE_API ? sectorsAPI        : sectorsLocal;
+const downloads      = USE_API ? downloadsAPI      : downloadsLocal;
+const periods        = USE_API ? periodsAPI        : periodsLocal;
+const users          = USE_API ? usersAPI          : usersLocal;
+const reclamos       = USE_API ? reclamosAPI       : reclamosLocal;
+const reclamosConfig = USE_API ? reclamosConfigAPI : reclamosConfigLocal;
 
 export const db = {
 
-  // ── Archivos (módulo Información) ──────────────────────────────────────
-  // API equivalente: GET/POST/PUT/DELETE /api/files
+  // ── Archivos (módulo Información) ─────────────────────────────────────────
+  // API: GET/PUT /api/files  ·  GET/PUT/POST /api/files/audit
   files: {
-    getAll:        filesStorage.getAll,
-    saveAll:       filesStorage.saveAll,
-    getAuditLog:   filesStorage.getAuditLog,
-    saveAuditLog:  filesStorage.saveAuditLog,
-    appendAudit:   filesStorage.appendAuditEntry,
+    getAll:        files.getAll,
+    saveAll:       files.saveAll,
+    getAuditLog:   files.getAuditLog,
+    saveAuditLog:  files.saveAuditLog,
+    appendAudit:   files.appendAuditEntry,
   },
 
-  // ── Sectores y Sedes ────────────────────────────────────────────────────
-  // API equivalente: GET/POST/PUT/DELETE /api/sectors  y  /api/sites
+  // ── Sectores y Sedes ───────────────────────────────────────────────────────
+  // API: GET/PUT /api/sectors  ·  GET/PUT /api/sites
   sectors: {
-    getAllSectors: sectorsStorage.getAllSectors,
-    saveSectors:  sectorsStorage.saveSectors,
-    getAllSites:   sectorsStorage.getAllSites,
-    saveSites:    sectorsStorage.saveSites,
+    getAllSectors: sectors.getAllSectors,
+    saveSectors:  sectors.saveSectors,
+    getAllSites:   sectors.getAllSites,
+    saveSites:    sectors.saveSites,
   },
 
-  // ── Descargas y contadores ──────────────────────────────────────────────
-  // API equivalente: GET/POST /api/downloads  (contadores de numeración)
+  // ── Descargas y contadores de numeración ───────────────────────────────────
+  // API: GET/PUT /api/downloads/counters|downloaded|logs
+  // ATENCIÓN: los counters deben ser atómicos en el backend (ver BACKEND_GUIDE.md)
   downloads: {
-    getCounters:        downloadsStorage.getCounters,
-    saveCounters:       downloadsStorage.saveCounters,
-    getDownloadedFiles: downloadsStorage.getDownloadedFiles,
-    saveDownloadedFiles:downloadsStorage.saveDownloadedFiles,
-    getLogs:            downloadsStorage.getLogs,
-    saveLogs:           downloadsStorage.saveLogs,
+    getCounters:         downloads.getCounters,
+    saveCounters:        downloads.saveCounters,
+    getDownloadedFiles:  downloads.getDownloadedFiles,
+    saveDownloadedFiles: downloads.saveDownloadedFiles,
+    getLogs:             downloads.getLogs,
+    saveLogs:            downloads.saveLogs,
   },
 
-  // ── Liquidaciones (períodos) ────────────────────────────────────────────
-  // API equivalente: GET/POST/PUT/DELETE /api/periods
+  // ── Liquidaciones (períodos) ───────────────────────────────────────────────
+  // API: GET/PUT /api/periods  ·  GET/PUT /api/periods/selected
   periods: {
-    getAll:        periodsStorage.getAll,
-    saveAll:       periodsStorage.saveAll,
-    getSelected:   periodsStorage.getSelected,
-    saveSelected:  periodsStorage.saveSelected,
+    getAll:      periods.getAll,
+    saveAll:     periods.saveAll,
+    getSelected: periods.getSelected,
+    saveSelected:periods.saveSelected,
   },
 
-  // ── Usuarios y sesión ───────────────────────────────────────────────────
-  // API equivalente: POST /api/auth/login  GET /api/users  etc.
-  // NOTA: el login con LDAP/AD reemplaza solo usersStorage.getSession / saveSession
+  // ── Usuarios y sesión ──────────────────────────────────────────────────────
+  // API: GET/PUT /api/users  ·  GET/PUT /api/users/:id  ·  GET/PUT /api/auth/session
+  // NOTA: el login/LDAP se migra en lib/auth.ts → attemptLogin()
   users: {
-    getAll:      usersStorage.getAll,
-    saveAll:     usersStorage.saveAll,
-    getById:     usersStorage.getById,
-    upsert:      usersStorage.upsert,
-    getSession:  usersStorage.getSession,
-    saveSession: usersStorage.saveSession,
+    getAll:      users.getAll,
+    saveAll:     users.saveAll,
+    getById:     users.getById,
+    upsert:      users.upsert,
+    getSession:  users.getSession,
+    saveSession: users.saveSession,
   },
 
-  // ── Reclamos ────────────────────────────────────────────────────────────
-  // API equivalente: GET/POST/PUT /api/reclamos
+  // ── Reclamos ───────────────────────────────────────────────────────────────
+  // API: GET/POST /api/reclamos  ·  GET/PATCH/DELETE /api/reclamos/:id
+  //      POST /api/reclamos/:id/estado|notificaciones|notas
   reclamos: {
-    getAll:          reclamosStorage.getAll,
-    getById:         reclamosStorage.getById,
-    create:          reclamosStorage.create,
-    update:          reclamosStorage.update,
-    softDelete:      reclamosStorage.softDelete,
-    updateEstado:    reclamosStorage.updateEstado,
-    addNotificacion: reclamosStorage.addNotificacion,
-    addNotaInterna:  reclamosStorage.addNotaInterna,
+    getAll:          reclamos.getAll,
+    getById:         reclamos.getById,
+    create:          reclamos.create,
+    update:          reclamos.update,
+    softDelete:      reclamos.softDelete,
+    updateEstado:    reclamos.updateEstado,
+    addNotificacion: reclamos.addNotificacion,
+    addNotaInterna:  reclamos.addNotaInterna,
   },
 
-  // ── Configuración de Reclamos ───────────────────────────────────────────
-  // API equivalente: GET/PUT /api/reclamos/config
+  // ── Configuración de Reclamos ──────────────────────────────────────────────
+  // API: GET/PUT /api/reclamos/config
   reclamosConfig: {
-    get:  reclamosConfigStorage.getConfig,
-    save: reclamosConfigStorage.saveConfig,
+    get:  reclamosConfig.getConfig,
+    save: reclamosConfig.saveConfig,
   },
 };

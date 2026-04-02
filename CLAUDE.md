@@ -115,10 +115,32 @@ Ver `BACKEND_GUIDE.md` — guía completa para Cómputos con:
 - Pasos concretos para hacer el swap en `services/db.ts`
 - Checklist mínimo de primera versión
 
-**Para conectar el backend:**
-1. Crear `src/services/api/xxxAPI.ts` con mismas funciones pero usando `fetch()`
-2. En `db.ts`, cambiar el import de `localStorage/xxx` por `api/xxx`
-3. El resto del código no cambia
+**Para conectar el backend (Cómputos):**
+1. Copiar `.env.example` → `.env.local`
+2. Editar `.env.local`: `VITE_USE_API=true` y `VITE_API_URL=http://tu-servidor/api`
+3. Implementar los endpoints REST del backend (ver `BACKEND_GUIDE.md`)
+4. Levantar el backend — el switch es automático, sin tocar ningún otro archivo
+
+Los skeleton files `src/services/api/` ya existen con las firmas correctas y documentación de endpoints.
+`client.ts` maneja auth headers (Bearer token), base URL y errores de red.
+
+## Infraestructura API (v8 — lista para Cómputos)
+```
+src/services/
+├── db.ts                         ← switch automático: VITE_USE_API=true → usa api/*
+├── api/
+│   ├── client.ts                 ← fetch helper: base URL, Bearer token, error handling
+│   ├── filesAPI.ts               ← GET/PUT /api/files + /api/files/audit
+│   ├── sectorsAPI.ts             ← GET/PUT /api/sectors + /api/sites
+│   ├── downloadsAPI.ts           ← GET/PUT /api/downloads/counters|downloaded|logs
+│   ├── periodsAPI.ts             ← GET/PUT /api/periods + /api/periods/selected
+│   ├── usersAPI.ts               ← GET/PUT /api/users/:id + /api/auth/session
+│   ├── reclamosAPI.ts            ← CRUD /api/reclamos + sub-rutas
+│   └── reclamosConfigAPI.ts      ← GET/PUT /api/reclamos/config
+└── localStorage/                 ← implementación actual (sin backend)
+    └── ...
+```
+`.env.example` en raíz documenta `VITE_API_URL` y `VITE_USE_API`.
 
 ## Deuda técnica conocida
 - `DataFlowDemo.tsx` tiene ~2.800 líneas y 40+ estados — funciona pero difícil de mantener
