@@ -1,14 +1,15 @@
 # Dataflow — Contexto del proyecto para Claude Code
 
 ## Qué es esto
-App web interna para la Gerencia de RRHH de una mutual uruguaya.
-Coordina el intercambio de archivos entre el equipo de **Información/RRHH** y el equipo de **Sueldos**, y gestiona reclamos de haberes de funcionarios.
+App web interna para la Gerencia de RRHH de Círculo Católico (mutual uruguaya).
+Coordina el intercambio de archivos entre el equipo de **Información/RRHH** y el equipo de **Sueldos**,
+y gestiona reclamos de haberes de funcionarios.
 Frontend-only SPA. Sin backend todavía — todo en `localStorage` via capa de abstracción `services/db.ts`.
 
 ## Stack
 - React 19 + TypeScript + Vite 7
 - Tailwind CSS via CDN (en `index.html`, no como paquete npm)
-- Sin librerías de estado externas (solo useState/useMemo)
+- Sin librerías de estado externas (solo useState/useMemo/useCallback)
 - `// @ts-nocheck` en la mayoría de archivos — intencional, no tocar
 
 ## Cómo correr
@@ -20,81 +21,120 @@ npm run build      # build de producción
 
 Login inicial: `admin / Admin-1234` · `superadmin / Super-1234`
 
+## Historial de versiones
+- **v1–v4**: módulo Información (archivos, observaciones, sectores, períodos, usuarios, superadmin, audit log)
+- **v5**: módulo Reclamos completo, capa `services/db.ts` para reclamos
+- **v6**: mejoras visuales (modo reclamos azul, modales con portal, filtros colapsables, Kanban)
+- **v7**: 8 mejoras al módulo Reclamos (antigüedad, contadores, notas internas, Kanban, multi-selección, borrador, plantillas de rechazo, aviso al bloquear)
+- **v8** (actual): abstracción completa del módulo Información + BACKEND_GUIDE.md para Cómputos
+
 ## Arquitectura
 ```
 src/
-├── app/DataFlowDemo.tsx          ← componente raíz (~2.817 líneas)
+├── app/DataFlowDemo.tsx          ← componente raíz (~2.800 líneas) — DEUDA TÉCNICA CONOCIDA
 ├── hooks/
-│   ├── useFiles.ts               ← archivos: upload, delete (lógico/físico), status, history
-│   ├── useDownloads.ts           ← descarga + numeración Sueldos + ZIP
-│   ├── useObservations.ts        ← dudas, arreglos, respuestas
+│   ├── useFiles.ts               ← archivos: upload, delete, status, history → usa db.files.*
+│   ├── useDownloads.ts           ← descarga + numeración Sueldos + ZIP → usa db.downloads.*
+│   ├── useObservations.ts        ← dudas, arreglos, respuestas (no accede localStorage directo)
 │   ├── useReports.ts             ← exportación CSV
-│   └── useSectors.ts             ← sectores, sedes, CSV import/export
+│   └── useSectors.ts             ← sectores, sedes → usa db.sectors.*
 ├── features/
 │   ├── files/                    ← tabla, detalle, modales de archivo
 │   ├── observations/             ← dudas funcionario (ObserveModal), arreglos, respuestas
-│   ├── doubts/                   ← (en desarrollo)
-│   ├── reclamos/                 ← módulo completo de reclamos de haberes ← NUEVO en v5
-│   │   ├── components/           ← ReclamosPanel, TablaReclamos, FormularioReclamo,
-│   │   │                            DetalleReclamo, ReclamosConfig, ReportesReclamos
+│   ├── reclamos/                 ← módulo completo de reclamos de haberes
+│   │   ├── components/           ← ReclamosPanel, TablaReclamos, TablaReclamosView,
+│   │   │                            KanbanReclamos, FormularioReclamo, DetalleReclamo,
+│   │   │                            ReclamosConfig, ReportesReclamos
 │   │   ├── hooks/                ← useReclamos, useReclamosConfig, useNotificaciones
-│   │   └── types/                ← reclamo.types.ts (EstadoReclamo, Reclamo, etc.)
+│   │   └── types/                ← reclamo.types.ts (EstadoReclamo, Reclamo, NotaInterna, etc.)
 │   ├── sectors/                  ← gestión sectores/sedes+CC, resumen por sector
-│   ├── periods/                  ← liquidaciones (con bloqueo por superadmin)
+│   ├── periods/                  ← liquidaciones (con bloqueo por admin Y superadmin)
 │   ├── reports/                  ← modales exportación CSV
 │   └── users/                    ← admin usuarios, permisos, perfil, SuperadminDashboard
-├── services/                     ← NUEVO en v5: capa de abstracción de persistencia
-│   ├── db.ts                     ← punto de migración: swappear implementación para backend real
+├── services/                     ← CAPA DE ABSTRACCIÓN — PUNTO DE MIGRACIÓN AL BACKEND
+│   ├── db.ts                     ← objeto central con todos los módulos. Cambiar imports aquí
+│   │                                para conectar API real sin tocar hooks ni componentes.
 │   └── localStorage/
-│       ├── reclamosStorage.ts    ← CRUD reclamos en localStorage
-│       └── reclamosConfigStorage.ts ← config de reclamos (causales, tipos, etc.)
-├── components/                   ← componentes UI genéricos
+│       ├── filesStorage.ts       ← archivos y audit log
+│       ├── sectorsStorage.ts     ← sectores y sedes
+│       ├── downloadsStorage.ts   ← contadores de numeración y logs de descarga
+│       ├── periodsStorage.ts     ← liquidaciones
+│       ├── usersStorage.ts       ← usuarios y sesión
+│       ├── reclamosStorage.ts    ← CRUD reclamos
+│       └── reclamosConfigStorage.ts ← config reclamos (causales, tipos, email, logo)
+├── components/                   ← UI genéricos reutilizables
 └── lib/
     ├── auth.ts                   ← login, sesión, usuarios (PUNTO DE MIGRACIÓN a AD/LDAP)
-    ├── perms.ts                  ← permisos por rol (incluye superadmin)
-    ├── storage.ts                ← claves de localStorage
+    ├── perms.ts                  ← permisos por rol
+    ├── storage.ts                ← claves de localStorage (centralizado)
     ├── time.ts / bytes.ts / ids.ts / cls.ts
     └── types.ts (vacío, tipos en src/types.ts)
 ```
 
 ## Roles del sistema
-- **superadmin** — por encima de todo: hard delete archivos, reset liquidaciones (con contraseña), dashboard SA, backup completo, bloqueo de períodos
-- **admin** — gestión total: usuarios, períodos, sectores, sedes, permisos; borrado lógico de archivos
-- **rrhh** (Información) — sube archivos, responde dudas, crea arreglos
-- **sueldos** — descarga archivos, marca dudas, recibe numeración automática
+- **superadmin** — todo: hard delete, reset liquidaciones, dashboard SA, backup, bloqueo de períodos
+- **admin** — gestión usuarios, períodos, sectores, sedes; bloqueo de períodos; borrado lógico archivos
+- **rrhh** (Información) — sube archivos, responde dudas, crea arreglos, emite reclamos
+- **sueldos** — descarga archivos, marca dudas, recibe numeración automática, gestiona estados de reclamos
 
-## Persistencia actual (localStorage)
-- `useFiles` → `fileflow-demo-v1`
-- `useDownloads` → `dataflow-downloadCounters`, `dataflow-downloadedFiles`, `dataflow-downloadLogs`
-- `useSectors` → `dataflow-sectors-v1`, `fileflow-sites-v1`
-- `reclamos` → via `services/db.ts` → `reclamosStorage` / `reclamosConfigStorage`
-- Audit log superadmin → `dataflow-audit-log-v1`
+**IMPORTANTE:** El rol `admin` puede bloquear/desbloquear liquidaciones (igual que superadmin).
 
-## Sectores
-- Cada sector tiene: nombre, patrones de detección, sede (siteCode), responsable RRHH (ownerUserId/ownerUsername), centro de costo (cc), requeridos, allowNoNews, activo
-- CSV import acepta columnas: `sector, patrones, sede, responsable, requeridos, sin_novedades, activo, cc`
-- El CC del sector auto-popula el campo CC en el modal de dudas (ObserveModal)
+## Permisos de bloqueo de liquidaciones
+Tanto `admin` como `superadmin` pueden bloquear/desbloquear períodos en ManagePeriodsModal.
+La condición es `isSuperAdmin || isAdmin`.
 
-## Módulo Reclamos (NUEVO v5)
-- Ticket con formato `RC-YYYYMMDD-XXXX`
-- Estados: Emitido → En proceso → Procesado/Liquidado / Rechazado / Eliminado
-- Historial de estados con usuario y fecha
-- Notificaciones simuladas (email/whatsapp) con HTML
-- Configurable: causales, tipos de reclamo
-- Reportes propios
+## Persistencia actual (localStorage vía db.ts)
+- `db.files.*` → `fileflow-demo-v1` + `dataflow-audit-log-v1`
+- `db.downloads.*` → `dataflow-downloadCounters`, `dataflow-downloadedFiles`, `dataflow-downloadLogs`
+- `db.sectors.*` → `dataflow-sectors-v1`, `fileflow-sites-v1`
+- `db.periods.*` → `fileflow-periods-v1`, `fileflow-period-selected-v1`
+- `db.users.*` → `fileflow-users`, `fileflow-session`
+- `db.reclamos.*` → `dataflow_reclamos`
+- `db.reclamosConfig.*` → `dataflow_reclamos_config`
 
-## Migración futura a backend (Linux + Apache + PostgreSQL + LDAP)
-- **Login**: reemplazar `attemptLogin()` en `src/lib/auth.ts`
-- **Datos**: reemplazar implementación en `services/db.ts` — el resto del código no cambia
-- **Archivos**: los blobUrl son temporales en memoria — necesitan S3 o equivalente
+## Módulo Reclamos
+- Ticket formato: `RC-YYYYMMDD-XXXX`
+- Estados: `Emitido → En proceso → Procesado/Liquidado / Rechazado / Eliminado`
+- Historial de estados con usuario, fecha y nota
+- Notas internas (hilo privado RRHH/Sueldos) — campo `notasInternas: NotaInterna[]`
+- Vista tabla y vista Kanban (toggle)
+- Multi-selección + eliminación en lote (tab Información)
+- Borrador auto-guardado en FormularioReclamo (`dataflow_reclamo_borrador` en localStorage)
+- Plantillas de motivos de rechazo en popup de cambio de estado
+- Aviso al bloquear liquidación con reclamos pendientes
+- Contadores en header: Emitidos, En proceso, Este mes, Total
+- Notificaciones simuladas (email/whatsapp) con HTML templates
+- Configurable: causales, tipos, email Sueldos, logo corporativo
+
+## Migración futura a backend
+Ver `BACKEND_GUIDE.md` — guía completa para Cómputos con:
+- Modelos de datos SQL (PostgreSQL)
+- Endpoints de API con métodos, rutas y permisos
+- Integración LDAP/Active Directory
+- Almacenamiento de archivos con nginx
+- Pasos concretos para hacer el swap en `services/db.ts`
+- Checklist mínimo de primera versión
+
+**Para conectar el backend:**
+1. Crear `src/services/api/xxxAPI.ts` con mismas funciones pero usando `fetch()`
+2. En `db.ts`, cambiar el import de `localStorage/xxx` por `api/xxx`
+3. El resto del código no cambia
+
+## Deuda técnica conocida
+- `DataFlowDemo.tsx` tiene ~2.800 líneas y 40+ estados — funciona pero difícil de mantener
+- TypeScript `strict: false` — intencional para velocidad de desarrollo
+- Sin tests unitarios
+- Tailwind via CDN (no npm) — sin tree-shaking pero funciona correctamente
+
+## Repositorio GitHub
+- URL: https://github.com/thelion182/Dataflow_v8
+- Branch principal: `master`
+- Cada cambio de código se commitea y pushea automáticamente
 
 ## Convenciones importantes
 - `// @ts-nocheck` en casi todos los archivos — NO agregar tipos estrictos salvo que ya existan
-- Inicialización de hooks: los `const [estado]` deben definirse ANTES del hook que los usa
 - Los modales en `features/` reciben todo por props — no acceden a estado global directamente
-- `useSectors` y `useFiles` inicializan y persisten su propio estado
-
-## Estado actual (Marzo 2026)
-- Build limpio ✅ (90 módulos)
-- v3/v4: barra de progreso de entrega, superadmin, logs de auditoría, bloqueo de períodos, backup, dashboard SA, CC en sectores, rediseño ObserveModal
-- v5: módulo Reclamos completo, capa `services/db.ts`, carpeta `features/doubts` (en desarrollo)
+- Modales sobre `document.body` usando `createPortal` para z-index correcto
+- `useSectors` y `useFiles` inicializan y persisten su propio estado via `db.*`
+- Nunca usar `localStorage` directamente en hooks o componentes — siempre via `db.*`
+- El email por defecto de Sueldos es `reclamos@circulocatolico.com.uy`
