@@ -26,9 +26,9 @@ Login inicial: `admin / Admin-1234` · `superadmin / Super-1234`
 - **v5**: módulo Reclamos completo, capa `services/db.ts` para reclamos
 - **v6**: mejoras visuales (modo reclamos azul, modales con portal, filtros colapsables, Kanban)
 - **v7**: 8 mejoras al módulo Reclamos (antigüedad, contadores, notas internas, Kanban, multi-selección, borrador, plantillas de rechazo, aviso al bloquear)
-- **v8** (actual): abstracción completa del módulo Información + BACKEND_GUIDE.md para Cómputos
+- **v8** (actual): abstracción completa + API skeletons + backend Node.js/Express completo + Docker
 
-## Arquitectura
+## Arquitectura del frontend
 ```
 src/
 ├── app/DataFlowDemo.tsx          ← componente raíz (~2.800 líneas) — DEUDA TÉCNICA CONOCIDA
@@ -52,16 +52,24 @@ src/
 │   ├── reports/                  ← modales exportación CSV
 │   └── users/                    ← admin usuarios, permisos, perfil, SuperadminDashboard
 ├── services/                     ← CAPA DE ABSTRACCIÓN — PUNTO DE MIGRACIÓN AL BACKEND
-│   ├── db.ts                     ← objeto central con todos los módulos. Cambiar imports aquí
-│   │                                para conectar API real sin tocar hooks ni componentes.
+│   ├── db.ts                     ← switch automático: VITE_USE_API=true → api/*, false → localStorage/*
+│   ├── api/                      ← skeletons fetch() — YA CREADOS, misma interfaz que localStorage/*
+│   │   ├── client.ts             ← fetch helper: base URL, Bearer token, error handling
+│   │   ├── filesAPI.ts
+│   │   ├── sectorsAPI.ts
+│   │   ├── downloadsAPI.ts
+│   │   ├── periodsAPI.ts
+│   │   ├── usersAPI.ts
+│   │   ├── reclamosAPI.ts
+│   │   └── reclamosConfigAPI.ts
 │   └── localStorage/
-│       ├── filesStorage.ts       ← archivos y audit log
-│       ├── sectorsStorage.ts     ← sectores y sedes
-│       ├── downloadsStorage.ts   ← contadores de numeración y logs de descarga
-│       ├── periodsStorage.ts     ← liquidaciones
-│       ├── usersStorage.ts       ← usuarios y sesión
-│       ├── reclamosStorage.ts    ← CRUD reclamos
-│       └── reclamosConfigStorage.ts ← config reclamos (causales, tipos, email, logo)
+│       ├── filesStorage.ts
+│       ├── sectorsStorage.ts
+│       ├── downloadsStorage.ts
+│       ├── periodsStorage.ts
+│       ├── usersStorage.ts
+│       ├── reclamosStorage.ts
+│       └── reclamosConfigStorage.ts
 ├── components/                   ← UI genéricos reutilizables
 └── lib/
     ├── auth.ts                   ← login, sesión, usuarios (PUNTO DE MIGRACIÓN a AD/LDAP)
@@ -71,6 +79,30 @@ src/
     └── types.ts (vacío, tipos en src/types.ts)
 ```
 
+## Arquitectura del backend (ya creado en backend/)
+```
+backend/
+├── src/
+│   ├── index.js                  ← Express, CORS, sesión, todas las rutas montadas
+│   ├── db.js                     ← pool PostgreSQL con dotenv
+│   ├── middleware/auth.js        ← requireAuth, requireRole
+│   └── routes/
+│       ├── auth.js               ← POST login (bcrypt+lockout), logout, GET me
+│       ├── users.js              ← CRUD usuarios
+│       ├── periods.js            ← CRUD liquidaciones
+│       ├── sectors.js            ← sync sectores y sedes
+│       ├── files.js              ← upload multer, download, audit log, soft/hard delete
+│       ├── downloads.js          ← contadores atómicos (SELECT FOR UPDATE), logs
+│       └── reclamos.js           ← CRUD completo + historial + notas + config
+├── sql/
+│   ├── 01_schema.sql             ← esquema PostgreSQL completo con índices
+│   └── 02_seed.sql               ← usuarios iniciales (bcrypt) + config reclamos
+├── package.json                  ← express, pg, bcryptjs, multer, express-session, uuid
+├── Dockerfile
+└── .env.example
+docker-compose.yml                ← en raíz: levanta PostgreSQL + backend con un comando
+```
+
 ## Roles del sistema
 - **superadmin** — todo: hard delete, reset liquidaciones, dashboard SA, backup, bloqueo de períodos
 - **admin** — gestión usuarios, períodos, sectores, sedes; bloqueo de períodos; borrado lógico archivos
@@ -78,9 +110,6 @@ src/
 - **sueldos** — descarga archivos, marca dudas, recibe numeración automática, gestiona estados de reclamos
 
 **IMPORTANTE:** El rol `admin` puede bloquear/desbloquear liquidaciones (igual que superadmin).
-
-## Permisos de bloqueo de liquidaciones
-Tanto `admin` como `superadmin` pueden bloquear/desbloquear períodos en ManagePeriodsModal.
 La condición es `isSuperAdmin || isAdmin`.
 
 ## Persistencia actual (localStorage vía db.ts)
@@ -106,41 +135,14 @@ La condición es `isSuperAdmin || isAdmin`.
 - Notificaciones simuladas (email/whatsapp) con HTML templates
 - Configurable: causales, tipos, email Sueldos, logo corporativo
 
-## Migración futura a backend
-Ver `BACKEND_GUIDE.md` — guía completa para Cómputos con:
-- Modelos de datos SQL (PostgreSQL)
-- Endpoints de API con métodos, rutas y permisos
-- Integración LDAP/Active Directory
-- Almacenamiento de archivos con nginx
-- Pasos concretos para hacer el swap en `services/db.ts`
-- Checklist mínimo de primera versión
+## Cómo conectar el backend (para Cómputos)
+Ver `BACKEND_GUIDE.md` — guía completa con pasos, SQL, endpoints, LDAP, nginx, checklist.
 
-**Para conectar el backend (Cómputos):**
-1. Copiar `.env.example` → `.env.local`
-2. Editar `.env.local`: `VITE_USE_API=true` y `VITE_API_URL=http://tu-servidor/api`
-3. Implementar los endpoints REST del backend (ver `BACKEND_GUIDE.md`)
-4. Levantar el backend — el switch es automático, sin tocar ningún otro archivo
-
-Los skeleton files `src/services/api/` ya existen con las firmas correctas y documentación de endpoints.
-`client.ts` maneja auth headers (Bearer token), base URL y errores de red.
-
-## Infraestructura API (v8 — lista para Cómputos)
-```
-src/services/
-├── db.ts                         ← switch automático: VITE_USE_API=true → usa api/*
-├── api/
-│   ├── client.ts                 ← fetch helper: base URL, Bearer token, error handling
-│   ├── filesAPI.ts               ← GET/PUT /api/files + /api/files/audit
-│   ├── sectorsAPI.ts             ← GET/PUT /api/sectors + /api/sites
-│   ├── downloadsAPI.ts           ← GET/PUT /api/downloads/counters|downloaded|logs
-│   ├── periodsAPI.ts             ← GET/PUT /api/periods + /api/periods/selected
-│   ├── usersAPI.ts               ← GET/PUT /api/users/:id + /api/auth/session
-│   ├── reclamosAPI.ts            ← CRUD /api/reclamos + sub-rutas
-│   └── reclamosConfigAPI.ts      ← GET/PUT /api/reclamos/config
-└── localStorage/                 ← implementación actual (sin backend)
-    └── ...
-```
-`.env.example` en raíz documenta `VITE_API_URL` y `VITE_USE_API`.
+**Pasos mínimos:**
+1. `docker compose up -d` (desde raíz)
+2. Ejecutar `backend/sql/01_schema.sql` y `02_seed.sql`
+3. `cp .env.example .env.local` → editar `VITE_USE_API=true` y `VITE_API_URL=http://servidor/api`
+4. `npm run dev` — el switch es automático, sin tocar ningún otro archivo
 
 ## Deuda técnica conocida
 - `DataFlowDemo.tsx` tiene ~2.800 líneas y 40+ estados — funciona pero difícil de mantener
@@ -151,7 +153,7 @@ src/services/
 ## Repositorio GitHub
 - URL: https://github.com/thelion182/Dataflow_v8
 - Branch principal: `master`
-- Cada cambio de código se commitea y pushea automáticamente
+- Cada cambio de código se commitea y pushea automáticamente a GitHub
 
 ## Convenciones importantes
 - `// @ts-nocheck` en casi todos los archivos — NO agregar tipos estrictos salvo que ya existan
@@ -160,3 +162,5 @@ src/services/
 - `useSectors` y `useFiles` inicializan y persisten su propio estado via `db.*`
 - Nunca usar `localStorage` directamente en hooks o componentes — siempre via `db.*`
 - El email por defecto de Sueldos es `reclamos@circulocatolico.com.uy`
+- Nunca agregar tipos estrictos TypeScript a archivos con `// @ts-nocheck`
+- Todo cambio de código → actualizar CLAUDE.md → commit + push a GitHub
