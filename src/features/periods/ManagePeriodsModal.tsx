@@ -110,7 +110,7 @@ export function ManagePeriodsModal({ managePeriodsOpen, setManagePeriodsOpen, so
                         </td>
 
                         <td className="px-2 py-1">
-                          {isSuperAdmin ? (
+                          {(isSuperAdmin || isAdmin) ? (
                             <label className="flex items-center gap-1 cursor-pointer">
                               <input
                                 type="checkbox"

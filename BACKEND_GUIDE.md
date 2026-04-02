@@ -362,7 +362,7 @@ CREATE TABLE reclamo_notas_internas (
 | `PUT`    | `/api/periods/:id` | admin, superadmin | Actualizar fechas/bloqueo |
 | `DELETE` | `/api/periods/:id` | admin (solo sin archivos) | Eliminar liquidación |
 
-**Nota importante:** El campo `locked` solo puede ser modificado por `superadmin`.
+**Nota importante:** El campo `locked` puede ser modificado por `admin` y `superadmin`.
 
 ---
 
