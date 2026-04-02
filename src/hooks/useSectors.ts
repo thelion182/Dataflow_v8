@@ -2,31 +2,15 @@
 import { useState, useEffect } from "react";
 import { uuid } from "../lib/ids";
 import type { SectorConfig, SiteConfig } from "../types";
-import { STORAGE_KEY_SECTORS, STORAGE_KEY_SITES } from "../lib/storage";
+import { db } from '../services/db';
 
 export function useSectors({ rrhhUsers }: any = {}) {
 
-  const [sectors, setSectors] = useState<SectorConfig[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_SECTORS);
-      return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
-  });
+  const [sectors, setSectors] = useState<SectorConfig[]>(() => db.sectors.getAllSectors());
+  const [sites, setSites]     = useState<SiteConfig[]>(() => db.sectors.getAllSites());
 
-  const [sites, setSites] = useState<SiteConfig[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_SITES);
-      return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
-  });
-
-  useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY_SECTORS, JSON.stringify(sectors)); } catch {}
-  }, [sectors]);
-
-  useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY_SITES, JSON.stringify(sites)); } catch {}
-  }, [sites]);
+  useEffect(() => { db.sectors.saveSectors(sectors); }, [sectors]);
+  useEffect(() => { db.sectors.saveSites(sites); }, [sites]);
 
   // ── Sites CRUD ─────────────────────────────────────────────────
 

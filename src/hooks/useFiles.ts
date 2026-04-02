@@ -4,28 +4,20 @@ import { uuid } from "../lib/ids";
 import { nowISO, formatDate } from "../lib/time";
 import { prettyBytes } from "../lib/bytes";
 import { STATUS } from "../types";
-import { STORAGE_KEY_FILES, STORAGE_KEY_AUDIT_LOG } from "../lib/storage";
 import { ROLE_DEFAULT_PERMISSIONS } from "../lib/perms";
 import { sclone } from '../features/shared/uiHelpers';
+import { db } from '../services/db';
 import {
   pendingCount, answeredCount,
   answeredFuncionarioDoubtsCount, answeredArchivoDoubtsCount,
 } from '../features/observations/observationHelpers';
 
 export function useFiles({ me, periods, selectedPeriodId, periodNameById, sectors, sites, publishEvent, pushToast, myPerms, setLastPicked, onOpenObserve, guessSectorForFileName, guessSiteForFileName }: any) {
-  const [files, setFiles] = useState<any[]>(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY_FILES);
-      return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
-  });
+  const [files, setFiles] = useState<any[]>(() => db.files.getAll());
 
-  // Persist files (strip blobUrl since Blob objects can't be serialized)
+  // Persist files via db (strip blobUrl — Blob objects no son serializables)
   useEffect(() => {
-    try {
-      const minimal = files.map((f: any) => ({ ...f, blobUrl: undefined }));
-      localStorage.setItem(STORAGE_KEY_FILES, JSON.stringify(minimal));
-    } catch {}
+    db.files.saveAll(files);
   }, [files]);
 
   function updateFile(id: string, updater: (f: any) => any) {
@@ -226,11 +218,7 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
       // Hard delete: elimina físicamente del array y del storage
       if (!confirm(`¿ELIMINAR DEFINITIVAMENTE "${f.name}"?\nEsta acción no se puede deshacer y no deja trazabilidad.`)) return;
       setFiles((prev) => prev.filter((x) => x.id !== id));
-      try {
-        const prevLog = JSON.parse(localStorage.getItem(STORAGE_KEY_AUDIT_LOG) || "[]");
-        prevLog.unshift({ t: new Date().toISOString(), action: "hard_delete", byUserId: me?.id || "", byUsername: me?.username || "sistema", details: `Archivo eliminado: "${f.name}" (período: ${f.periodId})`, fileId: id, periodId: f.periodId });
-        localStorage.setItem(STORAGE_KEY_AUDIT_LOG, JSON.stringify(prevLog.slice(0, 500)));
-      } catch {}
+      db.files.appendAudit({ t: new Date().toISOString(), action: "hard_delete", byUserId: me?.id || "", byUsername: me?.username || "sistema", details: `Archivo eliminado: "${f.name}" (período: ${f.periodId})`, fileId: id, periodId: f.periodId });
       publishEvent({
         type: "file_hard_deleted",
         title: "Archivo eliminado permanentemente",
@@ -277,11 +265,7 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
   function hardResetPeriod(periodId: string) {
     const count = files.filter((x: any) => x.periodId === periodId).length;
     setFiles((prev) => prev.filter((x) => x.periodId !== periodId));
-    try {
-      const prevLog = JSON.parse(localStorage.getItem(STORAGE_KEY_AUDIT_LOG) || "[]");
-      prevLog.unshift({ t: new Date().toISOString(), action: "period_reset", byUserId: me?.id || "", byUsername: me?.username || "sistema", details: `Reset de liquidación ${periodId} (${count} archivos eliminados)`, periodId });
-      localStorage.setItem(STORAGE_KEY_AUDIT_LOG, JSON.stringify(prevLog.slice(0, 500)));
-    } catch {}
+    db.files.appendAudit({ t: new Date().toISOString(), action: "period_reset", byUserId: me?.id || "", byUsername: me?.username || "sistema", details: `Reset de liquidación ${periodId} (${count} archivos eliminados)`, periodId });
     publishEvent({
       type: "period_reset",
       title: "Liquidación reseteada",
@@ -463,7 +447,7 @@ export function useFiles({ me, periods, selectedPeriodId, periodNameById, sector
   }
 
   function clearAll() {
-    if (confirm("¿Borrar todo el demo?")) { setFiles([]); localStorage.removeItem(STORAGE_KEY_FILES); }
+    if (confirm("¿Borrar todo el demo?")) { setFiles([]); db.files.saveAll([]); }
   }
 
   function handleStatusChange(f, next) {

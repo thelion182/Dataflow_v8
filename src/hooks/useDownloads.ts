@@ -5,42 +5,18 @@ import { nowISO } from "../lib/time";
 import { getUserById } from "../lib/auth";
 import type { DownloadLogEntry } from "../types";
 import { sclone } from '../features/shared/uiHelpers';
+import { db } from '../services/db';
 
 export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPeriodId, addHistoryEntry, markDownloaded, updateFile, publishEvent, pushToast, selectedIds }: any) {
 
-  const [downloadCounters, setDownloadCounters] = useState(() => {
-    try {
-      const raw = localStorage.getItem("dataflow-downloadCounters");
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
-  });
+  const [downloadCounters, setDownloadCounters] = useState(() => db.downloads.getCounters());
+  const [downloadedFiles,  setDownloadedFiles]  = useState(() => db.downloads.getDownloadedFiles());
+  const [downloadLogs,     setDownloadLogs]     = useState<DownloadLogEntry[]>(() => db.downloads.getLogs());
 
-  const [downloadedFiles, setDownloadedFiles] = useState(() => {
-    try {
-      const raw = localStorage.getItem("dataflow-downloadedFiles");
-      return raw ? JSON.parse(raw) : {};
-    } catch { return {}; }
-  });
+  useEffect(() => { db.downloads.saveCounters(downloadCounters); }, [downloadCounters]);
+  useEffect(() => { db.downloads.saveDownloadedFiles(downloadedFiles); }, [downloadedFiles]);
 
-  const [downloadLogs, setDownloadLogs] = useState<DownloadLogEntry[]>(() => {
-    try {
-      const raw = localStorage.getItem("dataflow-downloadLogs");
-      return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
-  });
-
-  // Persist counters
-  useEffect(() => {
-    try { localStorage.setItem("dataflow-downloadCounters", JSON.stringify(downloadCounters)); } catch {}
-  }, [downloadCounters]);
-
-  useEffect(() => {
-    try { localStorage.setItem("dataflow-downloadedFiles", JSON.stringify(downloadedFiles)); } catch {}
-  }, [downloadedFiles]);
-
-  useEffect(() => {
-    try { localStorage.setItem("dataflow-downloadLogs", JSON.stringify(downloadLogs)); } catch {}
-  }, [downloadLogs]);
+  useEffect(() => { db.downloads.saveLogs(downloadLogs); }, [downloadLogs]);
 
   function archivoYaDescargadoEnPeriodo(fileId: string, periodId: string) {
     const byPeriod = downloadedFiles[periodId] || {};
@@ -258,23 +234,14 @@ export function useDownloads({ files, setFiles, me, meRole, myPerms, selectedPer
 
       // Actualizamos estructura de contadores para que el admin siga viendo el "último usado"
       let dc: any = {};
-      try {
-        const raw = localStorage.getItem("dataflow-downloadCounters");
-        dc = raw ? JSON.parse(raw) : {};
-      } catch {
-        dc = {};
-      }
+      dc = db.downloads.getCounters();
       if (!dc[selectedPeriodId]) dc[selectedPeriodId] = {};
 
       const currentStored = dc[selectedPeriodId][freshMe.id];
       if (typeof currentStored !== "number" || currentStored < nextNum) {
         dc[selectedPeriodId][freshMe.id] = nextNum;
       }
-      try {
-        localStorage.setItem("dataflow-downloadCounters", JSON.stringify(dc));
-      } catch (e) {
-        console.error("No pude persistir contador de descargas:", e);
-      }
+      db.downloads.saveCounters(dc);
 
       // Formato final: "<numero> <NombreOriginal>.ext"
       const lastDot = originalName.lastIndexOf(".");
@@ -400,13 +367,8 @@ async function downloadSelectedAsZip() {
 
     const { nonTxtStart, nonTxtEnd, txtStart, txtEnd } = subRanges;
 
-    // Leemos contadores de localStorage
-    try {
-      const raw = localStorage.getItem("dataflow-downloadCounters");
-      dc = raw ? JSON.parse(raw) : {};
-    } catch {
-      dc = {};
-    }
+    // Leemos contadores via db
+    dc = db.downloads.getCounters();
     if (!dc[selectedPeriodId]) dc[selectedPeriodId] = {};
 
     // Números ya usados por este usuario en esta liquidación
@@ -544,11 +506,7 @@ async function downloadSelectedAsZip() {
 
   // Persistimos contadores de Sueldos (si aplica)
   if (isSueldos) {
-    try {
-      localStorage.setItem("dataflow-downloadCounters", JSON.stringify(dc));
-    } catch (e) {
-      console.error("No pude persistir contador de descargas:", e);
-    }
+    db.downloads.saveCounters(dc);
   }
 
   if (added === 0) {
