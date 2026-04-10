@@ -26,7 +26,7 @@ Login inicial: `admin / Admin-1234` · `superadmin / Super-1234`
 - **v5**: módulo Reclamos completo, capa `services/db.ts` para reclamos
 - **v6**: mejoras visuales (modo reclamos azul, modales con portal, filtros colapsables, Kanban)
 - **v7**: 8 mejoras al módulo Reclamos (antigüedad, contadores, notas internas, Kanban, multi-selección, borrador, plantillas de rechazo, aviso al bloquear)
-- **v8** (actual): abstracción completa + API skeletons + backend Node.js/Express completo + Docker
+- **v8** (actual): abstracción completa + API skeletons + backend Node.js/Express completo + Docker + sistema de auditoría completo
 
 ## Arquitectura del frontend
 ```
@@ -120,12 +120,15 @@ La condición es `isSuperAdmin || isAdmin`.
 - `db.users.*` → `fileflow-users`, `fileflow-session`
 - `db.reclamos.*` → `dataflow_reclamos`
 - `db.reclamosConfig.*` → `dataflow_reclamos_config`
+- `db.audit.*` → `dataflow-audit-v2` (nuevo, max 5000 entradas FIFO)
+  - Legado: `dataflow-audit-log-v1` (solo hard_delete/reset — seguirá leyéndose en el dashboard)
 
 ## Módulo Reclamos
 - Ticket formato: `RC-YYYYMMDD-XXXX`
-- Estados: `Emitido → En proceso → Procesado/Liquidado / Rechazado / Eliminado`
+- Estados: `Emitido → En proceso → Liquidado / Rechazado/Duda de reclamo / Eliminado`
 - Historial de estados con usuario, fecha y nota
 - Notas internas (hilo privado RRHH/Sueldos) — campo `notasInternas: NotaInterna[]`
+- Adjuntos (imágenes, PDF, Word, Excel) — almacenados como base64 data URLs, máx 5 MB/archivo
 - Vista tabla y vista Kanban (toggle)
 - Multi-selección + eliminación en lote (tab Información)
 - Borrador auto-guardado en FormularioReclamo (`dataflow_reclamo_borrador` en localStorage)
@@ -133,7 +136,21 @@ La condición es `isSuperAdmin || isAdmin`.
 - Aviso al bloquear liquidación con reclamos pendientes
 - Contadores en header: Emitidos, En proceso, Este mes, Total
 - Notificaciones simuladas (email/whatsapp) con HTML templates
+- Toggle "Notificar al funcionario al liquidar" en Configuración (campo `notificarLiquidado`)
+- Permisos por rol para eliminar: rrhh→solo 'Emitido'; admin/super→cualquier estado activo; sueldos→no puede
+- Estado auto "En proceso" cuando sueldos abre un reclamo 'Emitido'
+- rrhh solo puede cambiar estado de 'Rechazado/Duda de reclamo' → 'Emitido'
 - Configurable: causales, tipos, email Sueldos, logo corporativo
+
+## Sistema de Auditoría
+- `src/lib/audit.ts` — `logAudit()` fire-and-forget + `AuditEntry` type + `parseAmbiente()` (OS/browser)
+- `src/services/localStorage/auditStorage.ts` — persiste en `dataflow-audit-v2`, máx 5000 FIFO
+- `src/services/api/auditAPI.ts` — skeleton API (endpoints: GET/POST/DELETE /api/audit)
+- `db.audit.getAll()` / `db.audit.append()` / `db.audit.clear()`
+- Eventos capturados: login OK/fallido/bloqueado, logout, crear reclamo, cambiar estado, eliminar reclamo
+- IP siempre "N/D" en modo frontend — será real cuando se conecte el backend
+- Ambiente: "Windows 10/11 · Chrome 120" (parseado de userAgent)
+- `SuperadminDashboard.tsx` reescrito: tabla rica con filtros (módulo, acción, resultado, usuario, fecha desde/hasta), exportar CSV, backward-compatible con log legado v1
 
 ## Cómo conectar el backend (para Cómputos)
 Ver `BACKEND_GUIDE.md` — guía completa con pasos, SQL, endpoints, LDAP, nginx, checklist.

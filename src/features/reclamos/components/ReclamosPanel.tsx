@@ -4,6 +4,7 @@ import { useReclamos } from '../hooks/useReclamos';
 import { useReclamosConfig } from '../hooks/useReclamosConfig';
 import { useNotificaciones } from '../hooks/useNotificaciones';
 import { uuid } from '../../../lib/ids';
+import { logAudit } from '../../../lib/audit';
 import { TablaReclamos } from './TablaReclamos';
 import { TablaReclamosView } from './TablaReclamosView';
 import { KanbanReclamos } from './KanbanReclamos';
@@ -86,6 +87,13 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
       eliminado: false,
     };
     crear(reclamo);
+    logAudit({
+      modulo: 'reclamos',
+      accion: 'crear_reclamo',
+      entidadId: reclamo.id,
+      entidadRef: reclamo.ticket,
+      detalles: `Funcionario: ${reclamo.nombreFuncionario} · Tipo: ${reclamo.tipoReclamo}`,
+    });
     if (data.notificarEmail !== false) {
       generarNotificacionCreacion(reclamo);
     }
@@ -106,6 +114,13 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
   function handleCambiarEstado(r: Reclamo, estado: EstadoReclamo, nota: string) {
     const estadoAnterior = r.estado;
     cambiarEstado(r.id, estado, meId, meNombre, nota || undefined);
+    logAudit({
+      modulo: 'reclamos',
+      accion: 'cambiar_estado',
+      entidadId: r.id,
+      entidadRef: r.ticket,
+      detalles: `${estadoAnterior} → ${estado}${nota ? ` · Nota: ${nota}` : ''}`,
+    });
     const actualizado = { ...r, estado };
     generarNotificacionCambioEstado(actualizado, estadoAnterior, nota || undefined);
     reload();
@@ -118,6 +133,13 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
       if (!r) continue;
       const estadoAnterior = r.estado;
       cambiarEstado(id, estado, meId, meNombre, nota || undefined);
+      logAudit({
+        modulo: 'reclamos',
+        accion: 'cambiar_estado',
+        entidadId: r.id,
+        entidadRef: r.ticket,
+        detalles: `[Lote] ${estadoAnterior} → ${estado}${nota ? ` · Nota: ${nota}` : ''}`,
+      });
       const actualizado = { ...r, estado };
       generarNotificacionCambioEstado(actualizado, estadoAnterior, nota || undefined);
     }
@@ -228,8 +250,17 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
           meRole={meRole}
           onNuevo={() => setFormularioOpen(true)}
           onVer={handleVer}
-          onEliminar={r => eliminar(r.id, meId, meNombre)}
-          onEliminarLote={ids => eliminarLote(ids, meId, meNombre)}
+          onEliminar={r => {
+            eliminar(r.id, meId, meNombre);
+            logAudit({ modulo: 'reclamos', accion: 'eliminar_reclamo', entidadId: r.id, entidadRef: r.ticket, detalles: `Funcionario: ${r.nombreFuncionario}` });
+          }}
+          onEliminarLote={ids => {
+            ids.forEach(id => {
+              const r = reclamos.find(x => x.id === id);
+              logAudit({ modulo: 'reclamos', accion: 'eliminar_reclamo', entidadId: id, entidadRef: r?.ticket, detalles: `[Lote] Funcionario: ${r?.nombreFuncionario}` });
+            });
+            eliminarLote(ids, meId, meNombre);
+          }}
           onCambiarEstado={handleCambiarEstado}
           onExportarCSV={exportarCSV}
         />

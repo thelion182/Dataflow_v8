@@ -25,6 +25,7 @@ import * as periodsLocal        from './localStorage/periodsStorage';
 import * as usersLocal          from './localStorage/usersStorage';
 import * as reclamosLocal       from './localStorage/reclamosStorage';
 import * as reclamosConfigLocal from './localStorage/reclamosConfigStorage';
+import * as auditLocal          from './localStorage/auditStorage';
 
 // ─── API REST (modo backend — activar con VITE_USE_API=true) ──────────────
 import * as filesAPI          from './api/filesAPI';
@@ -34,6 +35,7 @@ import * as periodsAPI        from './api/periodsAPI';
 import * as usersAPI          from './api/usersAPI';
 import * as reclamosAPI       from './api/reclamosAPI';
 import * as reclamosConfigAPI from './api/reclamosConfigAPI';
+import * as auditAPI          from './api/auditAPI';
 
 // ─── Selección automática ─────────────────────────────────────────────────
 const files          = USE_API ? filesAPI          : filesLocal;
@@ -43,6 +45,7 @@ const periods        = USE_API ? periodsAPI        : periodsLocal;
 const users          = USE_API ? usersAPI          : usersLocal;
 const reclamos       = USE_API ? reclamosAPI       : reclamosLocal;
 const reclamosConfig = USE_API ? reclamosConfigAPI : reclamosConfigLocal;
+const audit          = USE_API ? auditAPI          : auditLocal;
 
 export const db = {
 
@@ -117,5 +120,13 @@ export const db = {
   reclamosConfig: {
     get:  reclamosConfig.getConfig,
     save: reclamosConfig.saveConfig,
+  },
+
+  // ── Auditoría ─────────────────────────────────────────────────────────────
+  // API: GET /api/audit  ·  POST /api/audit  ·  DELETE /api/audit
+  audit: {
+    getAll: audit.getAll,
+    append: audit.append,
+    clear:  audit.clear,
   },
 };

@@ -3,6 +3,7 @@ import { nowISO } from "./time";
 import { uuid } from "./ids";
 import { getUserEffectivePermissions, ROLE_DEFAULT_PERMISSIONS } from "./perms";
 import type { AppUser } from "../types";
+import { logAudit } from "./audit";
 
 export async function sha256(input: string) {
   const enc = new TextEncoder().encode(input);
@@ -58,6 +59,8 @@ export function setSession(session: any) {
 }
 
 export function logout() {
+  // Loguear antes de borrar la sesión (para tener usuario disponible)
+  logAudit({ modulo: 'auth', accion: 'logout' });
   setSession(null);
 }
 
@@ -149,9 +152,14 @@ export async function attemptLogin(username: string, password: string) {
   const user = users.find(
     (u) => u.username.toLowerCase() === (username || "").toLowerCase()
   );
-  if (!user) return { ok: false, error: "Usuario o contraseña inválidos." };
-  if (!user.active)
+  if (!user) {
+    logAudit({ modulo: 'auth', accion: 'login_fallido', detalles: `Usuario no encontrado: ${username}`, resultado: 'error', usuarioNombre: username });
+    return { ok: false, error: "Usuario o contraseña inválidos." };
+  }
+  if (!user.active) {
+    logAudit({ modulo: 'auth', accion: 'login_bloqueado', detalles: 'Usuario inactivo', resultado: 'bloqueado', usuarioId: user.id, usuarioNombre: user.displayName || user.username, usuarioRol: user.role });
     return { ok: false, error: "Usuario inactivo. Contactá al Administrador." };
+  }
 
   // lockout
   if (user.lockedUntil) {
@@ -177,12 +185,14 @@ export async function attemptLogin(username: string, password: string) {
     if (user.loginAttempts >= 5) {
       user.lockedUntil = new Date(Date.now() + 5 * 60000).toISOString();
       upsertUser(user);
+      logAudit({ modulo: 'auth', accion: 'login_bloqueado', detalles: 'Bloqueado por 5 min (muchos intentos)', resultado: 'bloqueado', usuarioId: user.id, usuarioNombre: user.displayName || user.username, usuarioRol: user.role });
       return {
         ok: false,
         error: "Muchos intentos fallidos. Bloqueado por 5 min.",
       };
     }
     upsertUser(user);
+    logAudit({ modulo: 'auth', accion: 'login_fallido', detalles: `Intento ${user.loginAttempts} de 5`, resultado: 'error', usuarioId: user.id, usuarioNombre: user.displayName || user.username, usuarioRol: user.role });
     return { ok: false, error: "Usuario o contraseña inválidos." };
   }
 
@@ -192,6 +202,7 @@ export async function attemptLogin(username: string, password: string) {
   user.lastLoginAt = nowISO();
   upsertUser(user);
   setSession({ userId: user.id });
+  logAudit({ modulo: 'auth', accion: 'login', resultado: 'ok', usuarioId: user.id, usuarioNombre: user.displayName || user.username, usuarioRol: user.role });
   return { ok: true, user };
 }
 
