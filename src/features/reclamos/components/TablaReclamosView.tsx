@@ -45,11 +45,11 @@ const ESTADO_COLOR: Record<string, string> = {
   Emitido: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
   'En proceso': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
   'Procesado/Liquidado': 'bg-green-500/20 text-green-300 border-green-500/40',
-  Rechazado: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+  'Rechazado/Duda de reclamo': 'bg-rose-500/20 text-rose-300 border-rose-500/40',
   Eliminado: 'bg-neutral-500/20 text-neutral-400 border-neutral-500/40',
 };
-const ESTADOS_SUELDOS: EstadoReclamo[] = ['En proceso', 'Procesado/Liquidado', 'Rechazado'];
-const ESTADOS_FILTRO = ['Emitido', 'En proceso', 'Procesado/Liquidado', 'Rechazado'];
+const ESTADOS_SUELDOS: EstadoReclamo[] = ['En proceso', 'Procesado/Liquidado', 'Rechazado/Duda de reclamo'];
+const ESTADOS_FILTRO = ['Emitido', 'En proceso', 'Procesado/Liquidado', 'Rechazado/Duda de reclamo'];
 const IN = "rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 focus:outline-none focus:border-neutral-500";
 
 const CAUSALES_RECHAZO = [
@@ -71,6 +71,8 @@ interface CambioEstadoPopupProps {
 function CambioEstadoPopup({ titulo, subtitulo, onConfirmar, onCancelar }: CambioEstadoPopupProps) {
   const [estado, setEstado] = useState<EstadoReclamo>('En proceso');
   const [nota, setNota] = useState('');
+
+  const esRechazo = estado === 'Rechazado/Duda de reclamo';
 
   function aplicarPlantilla(causal: string) {
     setNota(prev => prev ? `${prev}\n${causal}` : causal);
@@ -94,10 +96,10 @@ function CambioEstadoPopup({ titulo, subtitulo, onConfirmar, onCancelar }: Cambi
           </select>
         </div>
 
-        {/* Plantillas de rechazo */}
-        {estado === 'Rechazado' && (
+        {/* Plantillas de rechazo/duda */}
+        {esRechazo && (
           <div>
-            <p className="text-xs text-neutral-500 mb-1.5">Motivos de rechazo frecuentes:</p>
+            <p className="text-xs text-neutral-500 mb-1.5">Motivos frecuentes:</p>
             <div className="flex flex-wrap gap-1.5">
               {CAUSALES_RECHAZO.map(c => (
                 <button
@@ -116,13 +118,13 @@ function CambioEstadoPopup({ titulo, subtitulo, onConfirmar, onCancelar }: Cambi
 
         <div>
           <label className="block text-xs text-neutral-400 mb-1">
-            {estado === 'Rechazado' ? 'Motivo del rechazo' : 'Nota (opcional)'}
+            {esRechazo ? 'Motivo del rechazo / duda' : 'Nota (opcional)'}
           </label>
           <textarea
             className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:outline-none min-h-[64px] resize-none"
             value={nota}
             onChange={e => setNota(e.target.value)}
-            placeholder={estado === 'Rechazado' ? 'Explicar el motivo del rechazo...' : 'Aclaración para el funcionario...'}
+            placeholder={esRechazo ? 'Explicar el motivo del rechazo o duda...' : 'Aclaración para el funcionario...'}
           />
         </div>
         <div className="flex justify-end gap-2">
@@ -138,7 +140,7 @@ function CambioEstadoPopup({ titulo, subtitulo, onConfirmar, onCancelar }: Cambi
             type="button"
             onClick={() => onConfirmar(estado, nota)}
             style={{ padding: '6px 14px' }}
-            className={`rounded-xl text-sm text-white font-medium ${estado === 'Rechazado' ? 'bg-rose-700 hover:bg-rose-600' : 'bg-blue-600 hover:bg-blue-500'}`}
+            className={`rounded-xl text-sm text-white font-medium ${esRechazo ? 'bg-rose-700 hover:bg-rose-600' : 'bg-blue-600 hover:bg-blue-500'}`}
           >
             Confirmar
           </button>
@@ -157,8 +159,8 @@ export function TablaReclamosView({
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
   const [loteOpen, setLoteOpen] = useState(false);
   const [filtrosOpen, setFiltrosOpen] = useState(false);
-  // Ver eliminados: estado local independiente de Información
-  const [mostrarEliminados, setMostrarEliminados] = useState(true);
+  // Ver eliminados: empieza en false — se activa con el checkbox
+  const [mostrarEliminados, setMostrarEliminados] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const [panelHeight, setPanelHeight] = useState(0);
 
@@ -166,7 +168,6 @@ export function TablaReclamosView({
     if (panelRef.current) setPanelHeight(panelRef.current.scrollHeight);
   }, [filtrosOpen, tiposReclamo, liquidaciones]);
 
-  // Sueldos: usa mostrarEliminados local. No-sueldos: también local.
   const visible = useMemo(
     () => mostrarEliminados ? filtrados : filtrados.filter(r => !r.eliminado),
     [filtrados, mostrarEliminados]
@@ -177,13 +178,19 @@ export function TablaReclamosView({
     setSeleccionados(new Set());
   }
 
+  function toggleMostrarEliminados(v: boolean) {
+    setMostrarEliminados(v);
+    // CRÍTICO: sincronizar con el hook para que filtrados incluya eliminados
+    setFiltros({ ...filtros, mostrarEliminados: v });
+    setSeleccionados(new Set());
+  }
+
   const filtrosActivos = [
     filtros.busqueda, filtros.estado, filtros.tipo,
     filtros.liquidacion, filtros.paraLiquidacion,
     filtros.desde, filtros.hasta,
   ].filter(Boolean).length;
 
-  // Checkbox individual
   function toggleSeleccion(id: string) {
     setSeleccionados(prev => {
       const next = new Set(prev);
@@ -192,7 +199,6 @@ export function TablaReclamosView({
     });
   }
 
-  // Checkbox "seleccionar todos" los visibles
   const todosSeleccionados = visible.length > 0 && visible.every(r => seleccionados.has(r.id));
   const algunoSeleccionado = visible.some(r => seleccionados.has(r.id));
 
@@ -241,10 +247,10 @@ export function TablaReclamosView({
             </svg>
           </button>
 
-          {/* Ver eliminados independiente */}
+          {/* Ver eliminados */}
           <label className="flex items-center gap-1.5 text-sm text-neutral-500 cursor-pointer select-none">
             <input type="checkbox" checked={mostrarEliminados}
-              onChange={e => { setMostrarEliminados(e.target.checked); setSeleccionados(new Set()); }}
+              onChange={e => toggleMostrarEliminados(e.target.checked)}
               className="rounded" style={{ accentColor: '#3b82f6' }} />
             Ver eliminados
           </label>
@@ -297,7 +303,7 @@ export function TablaReclamosView({
         </div>
       </div>
 
-      {/* Barra de acción en lote (aparece cuando hay seleccionados) */}
+      {/* Barra de acción en lote */}
       {cantSeleccionados > 0 && (
         <div className="flex items-center gap-3 px-4 py-2.5 rounded-xl border border-blue-500/40 bg-blue-500/10">
           <span className="text-sm font-medium text-blue-300">
@@ -328,7 +334,6 @@ export function TablaReclamosView({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-neutral-800 bg-neutral-900/80">
-              {/* Checkbox seleccionar todos */}
               <th className="px-3 py-2.5 w-8">
                 <input
                   type="checkbox"

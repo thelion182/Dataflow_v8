@@ -11,13 +11,13 @@ interface Props {
 }
 
 const COLUMNAS: { estado: EstadoReclamo; label: string; color: string; bg: string; border: string }[] = [
-  { estado: 'Emitido',             label: 'Emitido',             color: 'text-blue-300',  bg: 'bg-blue-500/10',  border: 'border-blue-500/30' },
-  { estado: 'En proceso',         label: 'En proceso',         color: 'text-amber-300', bg: 'bg-amber-500/10', border: 'border-amber-500/30' },
-  { estado: 'Procesado/Liquidado', label: 'Procesado/Liq.',     color: 'text-green-300', bg: 'bg-green-500/10', border: 'border-green-500/30' },
-  { estado: 'Rechazado',           label: 'Rechazado',           color: 'text-rose-300',  bg: 'bg-rose-500/10',  border: 'border-rose-500/30' },
+  { estado: 'Emitido',                    label: 'Emitido',           color: 'text-blue-300',  bg: 'bg-blue-500/10',  border: 'border-blue-500/30' },
+  { estado: 'En proceso',                 label: 'En proceso',        color: 'text-amber-300', bg: 'bg-amber-500/10', border: 'border-amber-500/30' },
+  { estado: 'Procesado/Liquidado',        label: 'Procesado/Liq.',    color: 'text-green-300', bg: 'bg-green-500/10', border: 'border-green-500/30' },
+  { estado: 'Rechazado/Duda de reclamo',  label: 'Rechazado/Duda',   color: 'text-rose-300',  bg: 'bg-rose-500/10',  border: 'border-rose-500/30' },
 ];
 
-const ESTADOS_SUELDOS: EstadoReclamo[] = ['En proceso', 'Procesado/Liquidado', 'Rechazado'];
+const ESTADOS_SUELDOS: EstadoReclamo[] = ['En proceso', 'Procesado/Liquidado', 'Rechazado/Duda de reclamo'];
 
 const CAUSALES_RECHAZO = [
   'Fuera de plazo — el período ya fue cerrado',
@@ -65,7 +65,7 @@ function CambioPopup({ reclamo, isSueldos, onConfirmar, onCancelar }: CambioPopu
             {estados.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        {estado === 'Rechazado' && (
+        {estado === 'Rechazado/Duda de reclamo' && (
           <div>
             <p className="text-xs text-neutral-500 mb-1.5">Motivos frecuentes:</p>
             <div className="flex flex-wrap gap-1.5">
@@ -80,16 +80,16 @@ function CambioPopup({ reclamo, isSueldos, onConfirmar, onCancelar }: CambioPopu
           </div>
         )}
         <div>
-          <label className="block text-xs text-neutral-400 mb-1">{estado === 'Rechazado' ? 'Motivo del rechazo' : 'Nota (opcional)'}</label>
+          <label className="block text-xs text-neutral-400 mb-1">{estado === 'Rechazado/Duda de reclamo' ? 'Motivo del rechazo / duda' : 'Nota (opcional)'}</label>
           <textarea className="w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:outline-none min-h-[64px] resize-none"
             value={nota} onChange={e => setNota(e.target.value)}
-            placeholder={estado === 'Rechazado' ? 'Explicar el motivo...' : 'Aclaración...'} />
+            placeholder={estado === 'Rechazado/Duda de reclamo' ? 'Explicar el motivo o duda...' : 'Aclaración...'} />
         </div>
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onCancelar} style={{ padding: '6px 14px' }}
             className="rounded-xl bg-neutral-800 hover:bg-neutral-700 text-sm text-neutral-300">Cancelar</button>
           <button type="button" onClick={() => onConfirmar(estado, nota)} style={{ padding: '6px 14px' }}
-            className={`rounded-xl text-sm text-white font-medium ${estado === 'Rechazado' ? 'bg-rose-700 hover:bg-rose-600' : 'bg-blue-600 hover:bg-blue-500'}`}>
+            className={`rounded-xl text-sm text-white font-medium ${estado === 'Rechazado/Duda de reclamo' ? 'bg-rose-700 hover:bg-rose-600' : 'bg-blue-600 hover:bg-blue-500'}`}>
             Confirmar
           </button>
         </div>

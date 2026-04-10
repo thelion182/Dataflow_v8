@@ -1,6 +1,6 @@
 // @ts-nocheck
 import React, { useState, useRef, useEffect } from 'react';
-import type { Reclamo } from '../types/reclamo.types';
+import type { Reclamo, EstadoReclamo } from '../types/reclamo.types';
 import type { FiltrosReclamo } from '../hooks/useReclamos';
 
 interface Props {
@@ -9,10 +9,12 @@ interface Props {
   setFiltros: (f: FiltrosReclamo) => void;
   tiposReclamo: string[];
   liquidaciones: string[];
+  meRole: string;
   onNuevo: () => void;
   onVer: (r: Reclamo) => void;
   onEliminar: (r: Reclamo) => void;
   onEliminarLote: (ids: string[]) => void;
+  onCambiarEstado: (r: Reclamo, estado: EstadoReclamo, nota: string) => void;
   onExportarCSV: () => void;
 }
 
@@ -44,20 +46,36 @@ const ESTADO_COLOR: Record<string, string> = {
   Emitido: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
   'En proceso': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
   'Procesado/Liquidado': 'bg-green-500/20 text-green-300 border-green-500/40',
-  Rechazado: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+  'Rechazado/Duda de reclamo': 'bg-rose-500/20 text-rose-300 border-rose-500/40',
   Eliminado: 'bg-neutral-500/20 text-neutral-400 border-neutral-500/40',
 };
-const ESTADOS = ['Emitido', 'En proceso', 'Procesado/Liquidado', 'Rechazado', 'Eliminado'];
+const ESTADOS = ['Emitido', 'En proceso', 'Procesado/Liquidado', 'Rechazado/Duda de reclamo', 'Eliminado'];
 const IN = "rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 focus:outline-none focus:border-neutral-500";
 
-export function TablaReclamos({ filtrados, filtros, setFiltros, tiposReclamo, liquidaciones, onNuevo, onVer, onEliminar, onEliminarLote, onExportarCSV }: Props) {
+// Determina si este rol puede eliminar este reclamo
+function canEliminar(r: Reclamo, meRole: string): boolean {
+  if (r.eliminado) return false;
+  if (meRole === 'rrhh') return r.estado === 'Emitido';
+  if (meRole === 'admin' || meRole === 'superadmin') return true;
+  return false;
+}
+
+// rrhh puede re-emitir solo si el reclamo está Rechazado/Duda
+function canReEmitir(r: Reclamo, meRole: string): boolean {
+  if (r.eliminado) return false;
+  return meRole === 'rrhh' && r.estado === 'Rechazado/Duda de reclamo';
+}
+
+export function TablaReclamos({
+  filtrados, filtros, setFiltros, tiposReclamo, liquidaciones, meRole,
+  onNuevo, onVer, onEliminar, onEliminarLote, onCambiarEstado, onExportarCSV,
+}: Props) {
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [confirmReEmitirId, setConfirmReEmitirId] = useState<string | null>(null);
   const [filtrosOpen, setFiltrosOpen] = useState(false);
-  // Ver eliminados: estado local independiente
   const [mostrarEliminados, setMostrarEliminados] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const [panelHeight, setPanelHeight] = useState(0);
-  // Multi-selección
   const [seleccionados, setSeleccionados] = useState<Set<string>>(new Set());
   const [confirmLote, setConfirmLote] = useState(false);
 
@@ -68,7 +86,12 @@ export function TablaReclamos({ filtrados, filtros, setFiltros, tiposReclamo, li
   }, [filtrosOpen, tiposReclamo, liquidaciones]);
 
   function update(k: string, v: any) {
-    if (k === 'mostrarEliminados') { setMostrarEliminados(v); return; }
+    if (k === 'mostrarEliminados') {
+      setMostrarEliminados(v);
+      // CRÍTICO: sincronizar con el hook para que filtrados incluya eliminados
+      setFiltros({ ...filtros, mostrarEliminados: v });
+      return;
+    }
     setFiltros({ ...filtros, [k]: v });
     setSeleccionados(new Set());
   }
@@ -76,7 +99,12 @@ export function TablaReclamos({ filtrados, filtros, setFiltros, tiposReclamo, li
   // filtrados visibles aplicando eliminados local
   const visibles = mostrarEliminados ? filtrados : filtrados.filter(r => !r.eliminado);
 
-  // helpers multi-selección
+  // Solo se pueden seleccionar reclamos que este rol puede eliminar
+  const visiblesEliminables = visibles.filter(r => canEliminar(r, meRole));
+  const todosSeleccionados = visiblesEliminables.length > 0 && visiblesEliminables.every(r => seleccionados.has(r.id));
+  const algunoSeleccionado = visiblesEliminables.some(r => seleccionados.has(r.id));
+  const cantSeleccionados = visiblesEliminables.filter(r => seleccionados.has(r.id)).length;
+
   function toggleSeleccion(id: string) {
     setSeleccionados(prev => {
       const next = new Set(prev);
@@ -84,14 +112,10 @@ export function TablaReclamos({ filtrados, filtros, setFiltros, tiposReclamo, li
       return next;
     });
   }
-  const visiblesNoEliminados = visibles.filter(r => !r.eliminado);
-  const todosSeleccionados = visiblesNoEliminados.length > 0 && visiblesNoEliminados.every(r => seleccionados.has(r.id));
-  const algunoSeleccionado = visiblesNoEliminados.some(r => seleccionados.has(r.id));
-  const cantSeleccionados = visiblesNoEliminados.filter(r => seleccionados.has(r.id)).length;
 
   function toggleTodos() {
     if (todosSeleccionados) setSeleccionados(new Set());
-    else setSeleccionados(new Set(visiblesNoEliminados.map(r => r.id)));
+    else setSeleccionados(new Set(visiblesEliminables.map(r => r.id)));
   }
 
   // cuenta de filtros activos para el badge
@@ -137,7 +161,6 @@ export function TablaReclamos({ filtrados, filtros, setFiltros, tiposReclamo, li
                 {filtrosActivos}
               </span>
             )}
-            {/* Chevron animado */}
             <svg
               className="w-3 h-3 transition-transform duration-300"
               style={{ transform: filtrosOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}
@@ -147,12 +170,12 @@ export function TablaReclamos({ filtrados, filtros, setFiltros, tiposReclamo, li
             </svg>
           </button>
 
-          {/* Ver eliminados siempre visible pero independiente */}
+          {/* Ver eliminados */}
           <label className="flex items-center gap-1.5 text-sm text-neutral-500 cursor-pointer select-none">
             <input
               type="checkbox"
               checked={mostrarEliminados}
-              onChange={e => setMostrarEliminados(e.target.checked)}
+              onChange={e => update('mostrarEliminados', e.target.checked)}
               className="rounded"
               style={{ accentColor: '#3b82f6' }}
             />
@@ -192,10 +215,7 @@ export function TablaReclamos({ filtrados, filtros, setFiltros, tiposReclamo, li
         <div
           ref={panelRef}
           className="rounded-2xl border border-blue-500/20 bg-neutral-900/80 p-4"
-          style={{
-            background: 'linear-gradient(135deg, #0d1117 0%, #0a0f1a 100%)',
-            borderColor: '#3b82f622',
-          }}
+          style={{ background: 'linear-gradient(135deg, #0d1117 0%, #0a0f1a 100%)', borderColor: '#3b82f622' }}
         >
           <div className="flex flex-wrap gap-2 items-center">
             <select className={IN} value={filtros.estado} onChange={e => update('estado', e.target.value)}>
@@ -216,13 +236,11 @@ export function TablaReclamos({ filtrados, filtros, setFiltros, tiposReclamo, li
             </select>
             <input type="date" className={IN} value={filtros.desde} onChange={e => update('desde', e.target.value)} title="Desde" />
             <input type="date" className={IN} value={filtros.hasta} onChange={e => update('hasta', e.target.value)} title="Hasta" />
-
-            {/* Limpiar filtros */}
             {filtrosActivos > 0 && (
               <button
                 type="button"
                 onClick={() => {
-                  setFiltros({ ...filtros, estado: '', tipo: '', liquidacion: '', paraLiquidacion: '', desde: '', hasta: '', busqueda: '' });
+                  setFiltros({ ...filtros, estado: '', tipo: '', liquidacion: '', paraLiquidacion: '', desde: '', hasta: '', busqueda: '', mostrarEliminados: false });
                   setMostrarEliminados(false);
                 }}
                 style={{ padding: '6px 10px' }}
@@ -302,9 +320,9 @@ export function TablaReclamos({ filtrados, filtros, setFiltros, tiposReclamo, li
               <tr><td colSpan={8} className="px-4 py-8 text-center text-neutral-500">Sin resultados.</td></tr>
             )}
             {visibles.map(r => (
-              <tr key={r.id} className={`border-b border-neutral-800/50 transition-colors ${seleccionados.has(r.id) ? 'bg-blue-500/5' : 'hover:bg-neutral-800/30'}`}>
+              <tr key={r.id} className={`border-b border-neutral-800/50 transition-colors ${seleccionados.has(r.id) ? 'bg-blue-500/5' : 'hover:bg-neutral-800/30'} ${r.eliminado ? 'opacity-50' : ''}`}>
                 <td className="px-3 py-2.5">
-                  {!r.eliminado && (
+                  {canEliminar(r, meRole) && (
                     <input type="checkbox" checked={seleccionados.has(r.id)}
                       onChange={() => toggleSeleccion(r.id)}
                       className="rounded cursor-pointer"
@@ -326,7 +344,26 @@ export function TablaReclamos({ filtrados, filtros, setFiltros, tiposReclamo, li
                 <td className="px-4 py-2.5">
                   <div className="flex items-center gap-1 justify-end">
                     <button onClick={() => onVer(r)} className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-xs text-neutral-300">Ver</button>
-                    {!r.eliminado && (
+
+                    {/* Botón Re-emitir: solo rrhh cuando está Rechazado/Duda */}
+                    {canReEmitir(r, meRole) && (
+                      confirmReEmitirId === r.id ? (
+                        <div className="flex gap-1">
+                          <button onClick={() => { onCambiarEstado(r, 'Emitido', 'Re-emitido por RRHH'); setConfirmReEmitirId(null); }}
+                            className="px-2 py-1 rounded-lg bg-blue-700/80 hover:bg-blue-600 text-xs text-blue-100">Confirmar</button>
+                          <button onClick={() => setConfirmReEmitirId(null)}
+                            className="px-2 py-1 rounded-lg bg-neutral-800 text-xs text-neutral-400">No</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setConfirmReEmitirId(r.id)}
+                          className="px-2 py-1 rounded-lg bg-neutral-800 hover:bg-blue-900/50 text-xs text-neutral-400 hover:text-blue-300">
+                          Re-emitir
+                        </button>
+                      )
+                    )}
+
+                    {/* Botón Eliminar: solo si este rol puede eliminar este reclamo */}
+                    {canEliminar(r, meRole) && (
                       confirmId === r.id ? (
                         <div className="flex gap-1">
                           <button onClick={() => { onEliminar(r); setConfirmId(null); }} className="px-2 py-1 rounded-lg bg-rose-900/60 hover:bg-rose-900 text-xs text-rose-200">Confirmar</button>

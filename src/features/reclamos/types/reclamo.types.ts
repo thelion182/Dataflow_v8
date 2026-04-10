@@ -3,7 +3,7 @@ export type EstadoReclamo =
   | 'Emitido'
   | 'En proceso'
   | 'Procesado/Liquidado'
-  | 'Rechazado'
+  | 'Rechazado/Duda de reclamo'
   | 'Eliminado';
 
 export interface HistorialEstado {
@@ -30,6 +30,14 @@ export interface NotaInterna {
   fecha: string;  // ISO string
 }
 
+export interface Adjunto {
+  id: string;
+  nombre: string;
+  tipo: string;    // MIME type
+  tamaño: number;  // bytes
+  datos: string;   // base64 data URL
+}
+
 export interface Reclamo {
   id: string;              // uuid
   ticket: string;          // "RC-YYYYMMDD-XXXX"
@@ -50,6 +58,7 @@ export interface Reclamo {
   historialEstados: HistorialEstado[];
   notificaciones: NotificacionSimulada[];
   notasInternas: NotaInterna[];   // hilo privado RRHH/Sueldos
+  adjuntos?: Adjunto[];           // archivos adjuntos
   eliminado: boolean;      // soft delete
 }
 

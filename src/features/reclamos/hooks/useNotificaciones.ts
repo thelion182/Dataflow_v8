@@ -168,8 +168,8 @@ export function useNotificaciones() {
       let mensaje = '';
       if (reclamo.estado === 'Procesado/Liquidado') {
         mensaje = `Tu reclamo fue procesado y <strong>liquidado</strong> exitosamente.`;
-      } else if (reclamo.estado === 'Rechazado') {
-        mensaje = `Tu reclamo fue <strong>rechazado</strong> por el área de Sueldos.`;
+      } else if (reclamo.estado === 'Rechazado/Duda de reclamo') {
+        mensaje = `Tu reclamo fue <strong>rechazado o marcado con duda</strong> por el área de Sueldos.`;
       } else {
         mensaje = `El estado de tu reclamo fue actualizado a <strong>${reclamo.estado}</strong>.`;
       }

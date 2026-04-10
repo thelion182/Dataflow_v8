@@ -82,6 +82,7 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
         usuarioNombre: data.emisorNombre,
       }],
       notificaciones: [],
+      adjuntos: data.adjuntos || [],
       eliminado: false,
     };
     crear(reclamo);
@@ -92,10 +93,11 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
     setFormularioOpen(false);
   }
 
-  // Ver reclamo: si es Sueldos y el estado es "Emitido" → notifica al funcionario que llegó a Sueldos
+  // Ver reclamo: si es Sueldos y el estado es "Emitido" → cambia a "En proceso" automáticamente
   function handleVer(r: Reclamo) {
     setDetalleReclamo(r);
     if (isSueldos && r.estado === 'Emitido') {
+      cambiarEstado(r.id, 'En proceso', meId, meNombre);
       generarNotificacionVistaEnSueldos(r);
       reload();
     }
@@ -223,10 +225,12 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
           setFiltros={setFiltros}
           tiposReclamo={config.tiposReclamo}
           liquidaciones={config.liquidaciones}
+          meRole={meRole}
           onNuevo={() => setFormularioOpen(true)}
           onVer={handleVer}
           onEliminar={r => eliminar(r.id, meId, meNombre)}
           onEliminarLote={ids => eliminarLote(ids, meId, meNombre)}
+          onCambiarEstado={handleCambiarEstado}
           onExportarCSV={exportarCSV}
         />
       )}

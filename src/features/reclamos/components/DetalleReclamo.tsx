@@ -16,7 +16,7 @@ const ESTADO_COLOR: Record<string, string> = {
   Emitido: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
   'En proceso': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
   'Procesado/Liquidado': 'bg-green-500/20 text-green-300 border-green-500/40',
-  Rechazado: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
+  'Rechazado/Duda de reclamo': 'bg-rose-500/20 text-rose-300 border-rose-500/40',
   Eliminado: 'bg-neutral-500/20 text-neutral-400 border-neutral-500/40',
 };
 
@@ -41,6 +41,21 @@ function formatFechaHora(iso: string) {
   }
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function iconoMime(tipo: string): string {
+  if (tipo.startsWith('image/')) return '🖼️';
+  if (tipo === 'application/pdf') return '📄';
+  if (tipo.includes('word') || tipo.includes('document')) return '📝';
+  if (tipo.includes('excel') || tipo.includes('spreadsheet') || tipo.includes('sheet')) return '📊';
+  if (tipo === 'text/csv') return '📊';
+  return '📎';
+}
+
 export function DetalleReclamo({ reclamo, meId, meNombre, onAgregarNota, onClose }: Props) {
   const [notifExpandida, setNotifExpandida] = useState<number | null>(null);
   const [nuevaNota, setNuevaNota] = useState('');
@@ -59,6 +74,8 @@ export function DetalleReclamo({ reclamo, meId, meNombre, onAgregarNota, onClose
     onAgregarNota(reclamo.id, nota);
     setNuevaNota('');
   }
+
+  const adjuntos = reclamo.adjuntos || [];
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -106,6 +123,32 @@ export function DetalleReclamo({ reclamo, meId, meNombre, onAgregarNota, onClose
             <p className="text-sm text-neutral-400 mb-1">Descripción:</p>
             <p className="text-sm text-neutral-200 bg-neutral-800/60 rounded-xl p-3 whitespace-pre-wrap">{reclamo.descripcion}</p>
           </section>
+
+          {/* Adjuntos */}
+          {adjuntos.length > 0 && (
+            <section>
+              <h3 className="text-sm font-semibold text-neutral-400 uppercase tracking-wide mb-3">
+                Adjuntos <span className="text-neutral-600 font-normal normal-case tracking-normal text-xs">({adjuntos.length})</span>
+              </h3>
+              <div className="space-y-1.5">
+                {adjuntos.map(a => (
+                  <div key={a.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-neutral-800 bg-neutral-800/40">
+                    <span className="text-lg shrink-0">{iconoMime(a.tipo)}</span>
+                    <span className="flex-1 text-sm text-neutral-200 truncate min-w-0">{a.nombre}</span>
+                    <span className="text-xs text-neutral-500 shrink-0">{formatBytes(a.tamaño)}</span>
+                    <a
+                      href={a.datos}
+                      download={a.nombre}
+                      style={{ padding: '4px 10px' }}
+                      className="rounded-lg bg-neutral-700 hover:bg-neutral-600 text-xs text-neutral-200 transition-colors shrink-0"
+                    >
+                      Descargar
+                    </a>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Historial de estados */}
           <section>

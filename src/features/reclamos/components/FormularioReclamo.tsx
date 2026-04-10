@@ -1,9 +1,10 @@
 // @ts-nocheck
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import type { ReclamosConfig } from '../types/reclamo.types';
+import type { ReclamosConfig, Adjunto } from '../types/reclamo.types';
 
 const DRAFT_KEY = 'dataflow_reclamo_borrador';
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 interface Props {
   config: ReclamosConfig;
@@ -15,6 +16,21 @@ interface Props {
 
 const CAMPO = "w-full rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-2 text-sm text-neutral-100 focus:outline-none focus:border-neutral-500 placeholder-neutral-500";
 const LABEL = "block text-xs text-neutral-400 mb-1";
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function iconoMime(tipo: string): string {
+  if (tipo.startsWith('image/')) return '🖼️';
+  if (tipo === 'application/pdf') return '📄';
+  if (tipo.includes('word') || tipo.includes('document')) return '📝';
+  if (tipo.includes('excel') || tipo.includes('spreadsheet') || tipo.includes('sheet')) return '📊';
+  if (tipo === 'text/csv') return '📊';
+  return '📎';
+}
 
 export function FormularioReclamo({ config, emisorId, emisorNombre, onGuardar, onCancelar }: Props) {
   // Borrador: intenta recuperar de localStorage
@@ -39,10 +55,12 @@ export function FormularioReclamo({ config, emisorId, emisorNombre, onGuardar, o
     descripcion: '',
   });
   const [notificarEmail, setNotificarEmail] = useState(true);
+  const [adjuntos, setAdjuntos] = useState<Adjunto[]>([]);
   const [error, setError] = useState('');
   const [hayBorrador] = useState(!!initialForm);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-guardar borrador en cada cambio
+  // Auto-guardar borrador en cada cambio (sin adjuntos para no saturar localStorage)
   useEffect(() => {
     localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
   }, [form]);
@@ -55,6 +73,34 @@ export function FormularioReclamo({ config, emisorId, emisorNombre, onGuardar, o
     setForm((f) => ({ ...f, [k]: v }));
   }
 
+  function handleArchivos(files: File[]) {
+    setError('');
+    for (const file of files) {
+      if (file.size > MAX_FILE_SIZE) {
+        setError(`"${file.name}" supera 5 MB y no puede adjuntarse.`);
+        continue;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setAdjuntos(prev => [
+          ...prev,
+          {
+            id: Math.random().toString(36).slice(2),
+            nombre: file.name,
+            tipo: file.type || 'application/octet-stream',
+            tamaño: file.size,
+            datos: e.target?.result as string,
+          },
+        ]);
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  function quitarAdjunto(id: string) {
+    setAdjuntos(prev => prev.filter(a => a.id !== id));
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.nroFuncionario.trim()) { setError('El Nro. de Funcionario es requerido.'); return; }
@@ -63,7 +109,7 @@ export function FormularioReclamo({ config, emisorId, emisorNombre, onGuardar, o
     if (!form.descripcion.trim()) { setError('La descripción es requerida.'); return; }
     setError('');
     descartarBorrador();
-    onGuardar({ ...form, emisorId, emisorNombre, notificarEmail });
+    onGuardar({ ...form, emisorId, emisorNombre, notificarEmail, adjuntos });
   }
 
   return createPortal(
@@ -183,6 +229,52 @@ export function FormularioReclamo({ config, emisorId, emisorNombre, onGuardar, o
                 placeholder="Describir el reclamo en detalle..."
               />
             </div>
+
+            {/* Adjuntos */}
+            <div className="col-span-2">
+              <label className={LABEL}>
+                Adjuntos{' '}
+                <span className="text-neutral-600 font-normal">(opcional — imágenes, PDF, Excel, Word · máx. 5 MB c/u)</span>
+              </label>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,application/pdf,.xlsx,.xls,.docx,.doc,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword"
+                className="hidden"
+                onChange={e => handleArchivos(Array.from(e.target.files || []))}
+                onClick={e => { (e.target as HTMLInputElement).value = ''; }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={{ padding: '6px 12px' }}
+                className="rounded-xl border border-dashed border-neutral-600 hover:border-neutral-400 bg-neutral-800/40 hover:bg-neutral-800 text-sm text-neutral-400 hover:text-neutral-200 transition-colors w-full text-center"
+              >
+                + Adjuntar archivos
+              </button>
+
+              {adjuntos.length > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  {adjuntos.map(a => (
+                    <div key={a.id} className="flex items-center gap-2 px-3 py-2 rounded-xl border border-neutral-700 bg-neutral-800/60">
+                      <span className="text-base shrink-0">{iconoMime(a.tipo)}</span>
+                      <span className="flex-1 text-xs text-neutral-300 truncate min-w-0">{a.nombre}</span>
+                      <span className="text-[11px] text-neutral-500 shrink-0">{formatBytes(a.tamaño)}</span>
+                      <button
+                        type="button"
+                        onClick={() => quitarAdjunto(a.id)}
+                        className="text-neutral-600 hover:text-rose-400 transition-colors shrink-0 text-xs"
+                        title="Quitar adjunto"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             <div className="col-span-2">
               <label className={LABEL}>Emisor</label>
               <input className={CAMPO + ' opacity-60 cursor-not-allowed'} value={emisorNombre} readOnly />
