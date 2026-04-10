@@ -2,7 +2,7 @@
 export type EstadoReclamo =
   | 'Emitido'
   | 'En proceso'
-  | 'Procesado/Liquidado'
+  | 'Liquidado'
   | 'Rechazado/Duda de reclamo'
   | 'Eliminado';
 
@@ -70,5 +70,6 @@ export interface ReclamosConfig {
   tiposReclamo: string[];
   emailSueldos: string;
   whatsappActivo: boolean;
+  notificarLiquidado: boolean;   // enviar email al funcionario cuando pasa a Liquidado
   logoDataUrl?: string;
 }

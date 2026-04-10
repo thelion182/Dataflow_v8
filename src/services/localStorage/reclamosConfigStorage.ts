@@ -69,6 +69,7 @@ const SEED: ReclamosConfig = {
   ],
   emailSueldos: 'reclamos@circulocatolico.com.uy',
   whatsappActivo: false,
+  notificarLiquidado: true,
 };
 
 export function getConfig(): ReclamosConfig {
@@ -79,8 +80,12 @@ export function getConfig(): ReclamosConfig {
     // Migración: actualizar email por defecto viejo
     if (parsed.emailSueldos === 'sueldos@empresa.com.uy') {
       parsed.emailSueldos = 'reclamos@circulocatolico.com.uy';
-      localStorage.setItem(KEY, JSON.stringify(parsed));
     }
+    // Migración: campo notificarLiquidado (configs anteriores no lo tenían)
+    if (parsed.notificarLiquidado === undefined) {
+      parsed.notificarLiquidado = true;
+    }
+    localStorage.setItem(KEY, JSON.stringify(parsed));
     return parsed;
   } catch {
     return structuredClone(SEED);

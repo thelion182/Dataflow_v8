@@ -10,6 +10,7 @@ interface Props {
   onSetEmailSueldos: (email: string) => void;
   onSetWhatsappActivo: (activo: boolean) => void;
   onSetLogoDataUrl: (v: string) => void;
+  onSetNotificarLiquidado: (activo: boolean) => void;
 }
 
 const CAMPOS: { key: string; label: string }[] = [
@@ -210,7 +211,7 @@ function sampleEmailSueldos(emailSueldos: string, logoDataUrl?: string) {
 </body></html>`;
 }
 
-export function ReclamosConfig({ config, onAgregarItem, onEditarItem, onEliminarItem, onSetEmailSueldos, onSetWhatsappActivo, onSetLogoDataUrl }: Props) {
+export function ReclamosConfig({ config, onAgregarItem, onEditarItem, onEliminarItem, onSetEmailSueldos, onSetWhatsappActivo, onSetLogoDataUrl, onSetNotificarLiquidado }: Props) {
   const [emailLocal, setEmailLocal] = useState(config.emailSueldos);
   const [emailGuardado, setEmailGuardado] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -288,6 +289,49 @@ export function ReclamosConfig({ config, onAgregarItem, onEditarItem, onEliminar
           <p className="text-xs text-neutral-600">
             A esta dirección se envía una copia de cada nuevo reclamo. Las notificaciones son <span className="text-neutral-500">simuladas</span> — podés ver el historial en el detalle de cada reclamo.
           </p>
+        </div>
+
+        {/* Notificar al funcionario cuando pasa a Liquidado */}
+        <div className="flex items-center justify-between pt-4 border-t border-neutral-800">
+          <div>
+            <p className="text-sm text-neutral-300">Notificar al funcionario al liquidar</p>
+            <p className="text-xs text-neutral-500 mt-0.5 max-w-xs">
+              Cuando un reclamo pasa a <span className="text-green-400 font-medium">Liquidado</span> (individual o en lote),
+              se envía un email al funcionario indicando que fue liquidado y en qué liquidación se acredita.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onSetNotificarLiquidado(!config.notificarLiquidado)}
+            style={{
+              padding: 0,
+              width: '3rem',
+              height: '1.5rem',
+              position: 'relative',
+              borderRadius: '9999px',
+              border: 'none',
+              flexShrink: 0,
+              background: config.notificarLiquidado ? '#22c55e' : '#404040',
+              transition: 'background 0.2s ease',
+              cursor: 'pointer',
+            }}
+            aria-label="Toggle notificar liquidado"
+          >
+            <span
+              style={{
+                position: 'absolute',
+                top: '2px',
+                left: config.notificarLiquidado ? 'calc(100% - 22px)' : '2px',
+                width: '20px',
+                height: '20px',
+                borderRadius: '50%',
+                background: 'white',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.35)',
+                transition: 'left 0.2s ease',
+                pointerEvents: 'none',
+              }}
+            />
+          </button>
         </div>
 
         {/* WhatsApp toggle */}

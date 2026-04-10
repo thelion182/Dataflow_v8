@@ -13,11 +13,11 @@ interface Props {
 const COLUMNAS: { estado: EstadoReclamo; label: string; color: string; bg: string; border: string }[] = [
   { estado: 'Emitido',                    label: 'Emitido',           color: 'text-blue-300',  bg: 'bg-blue-500/10',  border: 'border-blue-500/30' },
   { estado: 'En proceso',                 label: 'En proceso',        color: 'text-amber-300', bg: 'bg-amber-500/10', border: 'border-amber-500/30' },
-  { estado: 'Procesado/Liquidado',        label: 'Procesado/Liq.',    color: 'text-green-300', bg: 'bg-green-500/10', border: 'border-green-500/30' },
+  { estado: 'Liquidado',                  label: 'Liquidado',         color: 'text-green-300', bg: 'bg-green-500/10', border: 'border-green-500/30' },
   { estado: 'Rechazado/Duda de reclamo',  label: 'Rechazado/Duda',   color: 'text-rose-300',  bg: 'bg-rose-500/10',  border: 'border-rose-500/30' },
 ];
 
-const ESTADOS_SUELDOS: EstadoReclamo[] = ['En proceso', 'Procesado/Liquidado', 'Rechazado/Duda de reclamo'];
+const ESTADOS_SUELDOS: EstadoReclamo[] = ['En proceso', 'Liquidado', 'Rechazado/Duda de reclamo'];
 
 const CAUSALES_RECHAZO = [
   'Fuera de plazo — el período ya fue cerrado',

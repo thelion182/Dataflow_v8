@@ -50,6 +50,10 @@ export function useReclamosConfig() {
     guardar({ ...config, logoDataUrl: dataUrl });
   }
 
+  function setNotificarLiquidado(activo: boolean) {
+    guardar({ ...config, notificarLiquidado: activo });
+  }
+
   return {
     config,
     reload,
@@ -60,5 +64,6 @@ export function useReclamosConfig() {
     setEmailSueldos,
     setWhatsappActivo,
     setLogoDataUrl,
+    setNotificarLiquidado,
   };
 }

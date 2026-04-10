@@ -44,12 +44,12 @@ function AntiguedadBadge({ r }: { r: Reclamo }) {
 const ESTADO_COLOR: Record<string, string> = {
   Emitido: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
   'En proceso': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-  'Procesado/Liquidado': 'bg-green-500/20 text-green-300 border-green-500/40',
+  'Liquidado': 'bg-green-500/20 text-green-300 border-green-500/40',
   'Rechazado/Duda de reclamo': 'bg-rose-500/20 text-rose-300 border-rose-500/40',
   Eliminado: 'bg-neutral-500/20 text-neutral-400 border-neutral-500/40',
 };
-const ESTADOS_SUELDOS: EstadoReclamo[] = ['En proceso', 'Procesado/Liquidado', 'Rechazado/Duda de reclamo'];
-const ESTADOS_FILTRO = ['Emitido', 'En proceso', 'Procesado/Liquidado', 'Rechazado/Duda de reclamo'];
+const ESTADOS_SUELDOS: EstadoReclamo[] = ['En proceso', 'Liquidado', 'Rechazado/Duda de reclamo'];
+const ESTADOS_FILTRO = ['Emitido', 'En proceso', 'Liquidado', 'Rechazado/Duda de reclamo'];
 const IN = "rounded-xl border border-neutral-700 bg-neutral-800 px-3 py-1.5 text-sm text-neutral-100 focus:outline-none focus:border-neutral-500";
 
 const CAUSALES_RECHAZO = [

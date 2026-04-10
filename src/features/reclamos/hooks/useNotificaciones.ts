@@ -155,24 +155,40 @@ export function useNotificaciones() {
     db.reclamos.addNotificacion(reclamo.id, notif);
   }, []);
 
-  // 3. Cuando cambia el estado (En proceso, Procesado/Liquidado, Rechazado):
-  //    email al funcionario solo con el nuevo estado — sin detalles/motivos
+  // 3. Cuando cambia el estado (En proceso, Liquidado, Rechazado/Duda):
+  //    email al funcionario con el nuevo estado.
+  //    Si el nuevo estado es 'Liquidado' y config.notificarLiquidado === false, no se envía.
   const generarNotificacionCambioEstado = useCallback(
     (reclamo: Reclamo, estadoAnterior: EstadoReclamo, nota?: string) => {
       const config = db.reclamosConfig.get();
+
+      // Si pasa a Liquidado y el toggle está desactivado → no generar notificación
+      if (reclamo.estado === 'Liquidado' && !config.notificarLiquidado) return;
+
       const fechaHoy = formatFecha(ahora());
       const notaHtml = nota
         ? `<p style="font-family:Arial,sans-serif;color:#444;margin-top:12px"><strong>Nota de Sueldos:</strong> ${nota}</p>`
         : '';
 
       let mensaje = '';
-      if (reclamo.estado === 'Procesado/Liquidado') {
-        mensaje = `Tu reclamo fue procesado y <strong>liquidado</strong> exitosamente.`;
+      if (reclamo.estado === 'Liquidado') {
+        const paraLiq = reclamo.paraLiquidacion
+          ? ` Se acreditará en la liquidación <strong>${reclamo.paraLiquidacion}</strong>.`
+          : '';
+        mensaje = `Tu reclamo fue procesado y <strong>liquidado</strong> exitosamente.${paraLiq}`;
       } else if (reclamo.estado === 'Rechazado/Duda de reclamo') {
         mensaje = `Tu reclamo fue <strong>rechazado o marcado con duda</strong> por el área de Sueldos.`;
       } else {
         mensaje = `El estado de tu reclamo fue actualizado a <strong>${reclamo.estado}</strong>.`;
       }
+
+      // Bloque adicional con para-liquidación (solo en Liquidado)
+      const paraLiqHtml = reclamo.estado === 'Liquidado' && reclamo.paraLiquidacion
+        ? `<div style="margin:12px 0;padding:10px 16px;background:#f0fdf4;border-left:3px solid #22c55e;border-radius:4px;font-family:Arial,sans-serif;font-size:13px">
+            <strong style="color:#166534">Para liquidación:</strong>
+            <span style="color:#14532d;font-weight:700;margin-left:6px">${reclamo.paraLiquidacion}</span>
+           </div>`
+        : '';
 
       const notif: NotificacionSimulada = {
         tipo: 'email',
@@ -183,6 +199,7 @@ export function useNotificaciones() {
           `Actualización de tu reclamo`,
           `<p style="font-size:14px;font-family:Arial,sans-serif">Estimado/a <strong>${reclamo.nombreFuncionario}</strong>,</p>
           <p style="font-family:Arial,sans-serif;color:#444">${mensaje}</p>
+          ${paraLiqHtml}
           <div style="display:inline-block;margin:12px 0;padding:10px 18px;background:#f5f5f5;border-radius:6px;font-family:Arial,sans-serif;font-size:13px">
             Ticket: <strong style="font-family:monospace">${reclamo.ticket}</strong>
             &nbsp;·&nbsp;

@@ -44,7 +44,7 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
   const {
     config,
     agregarItem, editarItem, eliminarItem,
-    setEmailSueldos, setWhatsappActivo, setLogoDataUrl,
+    setEmailSueldos, setWhatsappActivo, setLogoDataUrl, setNotificarLiquidado,
   } = useReclamosConfig();
 
   const {
@@ -281,6 +281,7 @@ export function ReclamosPanel({ meRole, meId, meNombre }: Props) {
           onSetEmailSueldos={setEmailSueldos}
           onSetWhatsappActivo={setWhatsappActivo}
           onSetLogoDataUrl={setLogoDataUrl}
+          onSetNotificarLiquidado={setNotificarLiquidado}
         />
       )}
 
