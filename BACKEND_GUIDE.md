@@ -166,11 +166,12 @@ Resumen de tablas:
 | `download_counters` | Contador numérico por usuario+período (atómico) |
 | `downloaded_files` | Registro de qué archivos descargó cada usuario |
 | `download_logs` | Log completo de descargas |
-| `reclamos` | Tickets de reclamos de haberes |
+| `reclamos` | Tickets de reclamos de haberes (incluye campo `adjuntos` JSON y `para_liquidacion`) |
 | `reclamo_historial` | Historial de cambios de estado |
 | `reclamo_notas_internas` | Notas privadas RRHH/Sueldos |
 | `reclamo_notificaciones` | Registro de emails/WhatsApp simulados |
-| `reclamos_config` | Configuración del módulo (fila única) |
+| `reclamos_config` | Configuración del módulo (incluye campo `notificar_liquidado` boolean) |
+| `audit_log` | Log de auditoría: login, logout, reclamos, etc. (ver sección 6 — Auditoría) |
 | `user_selected_period` | Período seleccionado por usuario (preferencia UI) |
 
 ---
@@ -302,10 +303,79 @@ WHERE user_id = $1 AND period_id = $2 FOR UPDATE;
 | `PUT`    | `/reclamos/config` | admin, superadmin | Guarda configuración |
 | `GET`    | `/reclamos/:id` | todos | Detalle de reclamo |
 | `PATCH`  | `/reclamos/:id` | autenticado | Actualiza campos |
-| `DELETE` | `/reclamos/:id` | rrhh, admin | Soft delete |
+| `DELETE` | `/reclamos/:id` | rrhh, admin | Soft delete (permisos por rol — ver nota) |
 | `POST`   | `/reclamos/:id/estado` | autenticado | Cambia estado |
 | `POST`   | `/reclamos/:id/notificaciones` | autenticado | Registra notificación |
 | `POST`   | `/reclamos/:id/notas` | autenticado | Agrega nota interna |
+
+**Notas sobre lógica de negocio para el backend:**
+
+- **Estados válidos:** `Emitido`, `En proceso`, `Liquidado`, `Rechazado/Duda de reclamo`, `Eliminado`
+- **Permisos de eliminar:** `rrhh` solo puede eliminar si `estado === 'Emitido'`; `admin`/`superadmin` pueden eliminar cualquier estado activo; `sueldos` no puede eliminar
+- **Permisos de cambiar estado:** `sueldos` puede cambiar a `En proceso`, `Liquidado`, `Rechazado/Duda de reclamo`; `rrhh` solo puede cambiar de `Rechazado/Duda de reclamo` → `Emitido`; `admin`/`superadmin` sin restricción
+- **Auto En proceso:** cuando `sueldos` visualiza un reclamo en estado `Emitido`, el frontend lo cambia automáticamente a `En proceso` — el backend debe aceptar este cambio normalmente
+- **Campo `adjuntos`:** array JSON `[{ id, nombre, tipo, tamaño, datos }]` donde `datos` es un base64 data URL. En producción considerar moverlos a almacenamiento de archivos (S3, disco)
+- **Campo `para_liquidacion`:** nombre de la liquidación en la que se acreditará el reclamo (texto libre)
+- **Notificar al liquidar:** `reclamos_config.notificar_liquidado` (boolean). Si es `true` y el estado pasa a `Liquidado`, el backend debería enviar email real al `email_funcionario` del reclamo
+
+---
+
+### Auditoría
+
+| Método | Ruta | Roles | Descripción |
+|--------|------|-------|-------------|
+| `GET`    | `/audit` | superadmin | Lista entradas del log (soportar query params: `modulo`, `accion`, `resultado`, `usuarioId`, `desde`, `hasta`) |
+| `POST`   | `/audit` | autenticado | Registra una entrada (body: `AuditEntry`) |
+| `DELETE` | `/audit` | superadmin | Limpia el log completo |
+
+**Estructura de `AuditEntry`:**
+```json
+{
+  "id": "uuid",
+  "timestamp": "2026-04-10T14:30:00.000Z",
+  "usuarioId": "uuid-del-usuario",
+  "usuarioNombre": "Leonel Figuera",
+  "usuarioRol": "rrhh",
+  "modulo": "reclamos",
+  "accion": "crear_reclamo",
+  "entidadId": "uuid-del-reclamo",
+  "entidadRef": "RC-20260410-4521",
+  "detalles": "Funcionario: Juan Pérez · Tipo: Diferencia de haberes",
+  "ip": "192.168.1.10",
+  "ambiente": "Windows 10/11 · Chrome 124",
+  "resultado": "ok"
+}
+```
+
+**Valores de `modulo`:** `auth` | `reclamos` | `archivos` | `usuarios` | `liquidaciones` | `sectores` | `config`  
+**Valores de `accion`:** `login` | `login_fallido` | `login_bloqueado` | `logout` | `crear_reclamo` | `cambiar_estado` | `eliminar_reclamo` | `hard_delete` | `reset_period`  
+**Valores de `resultado`:** `ok` | `error` | `bloqueado`
+
+**Nota sobre IP:** En el frontend la IP siempre llega como `"N/D"`. El backend puede sobreescribir este campo con `req.ip` o `X-Forwarded-For` al recibir el POST, así la IP real queda registrada sin depender del cliente.
+
+**Tabla SQL sugerida:**
+```sql
+CREATE TABLE audit_log (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  timestamp     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  usuario_id    UUID,
+  usuario_nombre TEXT,
+  usuario_rol   TEXT,
+  modulo        TEXT NOT NULL,
+  accion        TEXT NOT NULL,
+  entidad_id    UUID,
+  entidad_ref   TEXT,
+  detalles      TEXT,
+  ip            TEXT,
+  ambiente      TEXT,
+  resultado     TEXT NOT NULL DEFAULT 'ok'
+);
+
+CREATE INDEX idx_audit_timestamp  ON audit_log (timestamp DESC);
+CREATE INDEX idx_audit_usuario    ON audit_log (usuario_id);
+CREATE INDEX idx_audit_modulo     ON audit_log (modulo);
+CREATE INDEX idx_audit_accion     ON audit_log (accion);
+```
 
 ---
 
@@ -467,7 +537,8 @@ cookie: {
 - [ ] Descarga de archivos + numeración
 - [ ] Sectores y sedes
 - [ ] Usuarios (admin)
-- [ ] Reclamos (crear, cambiar estado, notas internas)
+- [ ] Reclamos (crear, cambiar estado, adjuntos, notas internas)
+- [ ] Auditoría (POST /audit desde frontend, GET /audit en dashboard superadmin)
 
 ---
 
